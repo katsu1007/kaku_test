@@ -5,8 +5,9 @@ import { cadSymbolParts, recognizeSymbols, symbolStatus, drawingSymbolMatches } 
 
 const dictionary = JSON.parse(readFileSync(new URL('../js/reader2/symbol_dictionary.json', import.meta.url), 'utf8'));
 const observed = dictionary.symbols.filter(x => x.entry_type === 'observed');
-const symbol = (id, x, y, angle=0, mirror=false) => {
-  const e = observed.find(q=>q.id===id), s = Math.max(e.features.width_mm,e.features.depth_mm)/1000;
+const newFurniture = ['desk_bench','desk_bench_set','desk_meeting_set','chair_task','chair_arm','chair_recliner'];
+const symbol = (id, x, y, angle=0, mirror=false, resize=1) => {
+  const e = observed.find(q=>q.id===id), s = resize*Math.max(e.features.width_mm,e.features.depth_mm)/1000;
   const c = Math.cos(angle), t = Math.sin(angle);
   const p = (a,b) => { if (mirror) a=-a; return [x+s*(a*c-b*t),y+s*(a*t+b*c)]; };
   return e.segments.map(([a,b,u,v]) => [...p(a,b),...p(u,v)]);
@@ -16,7 +17,7 @@ const parts = (lines, layer='', group=null) => lines.map(s => ({kind:'line',laye
 const recognize = o => recognizeSymbols(o,dictionary).matches;
 
 test('辞書に出典と実形状があり、汎用パターンとは区別する', () => {
-  assert.equal(observed.length,7);
+  assert.equal(observed.length,13);
   for (const e of observed) {
     assert.equal(e.provenance.license,'CC0-1.0');
     assert.match(e.provenance.sha256,/^[a-f0-9]{64}$/);
@@ -24,6 +25,31 @@ test('辞書に出典と実形状があり、汎用パターンとは区別す�
     assert.ok(e.features.width_mm>0);
   }
   assert.equal(dictionary.symbols.filter(x => x.entry_type==='generic_pattern' && !x.segments && x.provenance.kind==='original_heuristic').length,5);
+});
+
+test('家具6形状は、旧辞書で種類を絞れない角度・寸法違いの展開図形でも個別に検出する', () => {
+  const older = {...dictionary,symbols:dictionary.symbols.filter(e=>!newFurniture.includes(e.id))};
+  for (const [i,id] of newFurniture.entries()) {
+    const segs=symbol(id,5,7,.38,i%2===0,i%2===0 ? .91 : 1.08);
+    const prior = recognizeSymbols({segs},older).matches;
+    assert.deepEqual(prior.map(r=>[r.id,r.status]),id==='desk_bench' ? [['generic_desk','similar']] : [],id);
+    assert.deepEqual(recognize({segs}).map(r=>[r.id,r.status]),[[id,'match']],id);
+  }
+});
+
+test('家具の寸法に近くても、四角い外枠・円・ドアの開きは家具と判定しない', () => {
+  const rotatingRect=rect(0,0,.633,.666).flatMap(([a,b,u,v]) => {
+    const p=(x,y)=>[x*.8-y*.6+3,x*.6+y*.8+2];
+    const mid=[(a+u)/2,(b+v)/2];
+    return [[...p(a,b),...p(...mid)],[...p(...mid),...p(u,v)]];
+  });
+  const curve=(x,y,r,angle,n)=>Array.from({length:n},(_,i)=>{
+    const p=j=>[x+r*Math.cos(angle*j/n),y+r*Math.sin(angle*j/n)];
+    return [...p(i),...p(i+1)];
+  });
+  const empty=[...rect(0,0,.48,.5),[.24,.24,.25,.24],...rotatingRect,...rect(6,0,2.4,.7),
+    ...rect(10,0,1.8,.9),...curve(13,1,.45,2*Math.PI,40),...curve(15,1,.8,Math.PI/2,16),[15,1,15,1.8]];
+  assert.deepEqual(recognize({segs:empty}),[]);
 });
 
 test('展開された全CC0記号を、平行移動・90度回転・鏡像で拾う（ブロック名なし）', () => {

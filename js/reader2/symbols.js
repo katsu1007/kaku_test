@@ -226,6 +226,18 @@ const statusOrder = { match: 0, similar: 1, unknown: 2 };
 export const symbolStatus = x => ['match','similar','unknown'].includes(x?.status) ? x.status :
   x?.entry_type==='observed' && x.score>=91 ? 'match' : 'similar';
 
+function rectangleWithoutDetail({rr,b:[x0,y0,x1,y1]}) {
+  let border=0, detail=0;
+  const on = (x,y,edge) => Math.max(Math.abs(x-edge),Math.abs(y-edge))<=0.003;
+  for (const [x,y,u,v] of rr) {
+    const len=Math.hypot(u-x,v-y);
+    if (on(x,u,x0) || on(x,u,x1) || on(y,v,y0) || on(y,v,y1)) border+=len;
+    else detail+=len;
+  }
+  // A footprint-sized box, even with a stray small line, cannot establish furniture.
+  return detail<=Math.max(0.03,border*0.025);
+}
+
 function match(parts,entries) {
   const segs=parts.flatMap(x => x.segs);
   if (segs.length < 4 || segs.length > 360) return null;
@@ -233,10 +245,13 @@ function match(parts,entries) {
   if (Math.max(width(bb),height(bb))>4.5 || Math.min(width(bb),height(bb))<0.14) return null;
   const found=new Map();
   const add=(e,score,shape=0) => { if (score>(found.get(e.category)?.score||0)) found.set(e.category,{e,score,shape}); };
-  for (const a of angles(segs)) {
-    const v=oriented(segs,a); if (!v) continue;
+  const views=angles(segs).map(a=>[a,oriented(segs,a)]).filter(([,v])=>v);
+  const bareBox=views.some(([,v])=>rectangleWithoutDetail(v));
+  for (const [a,v] of views) {
     const v90=oriented(segs,a+Math.PI/2)||v;
+    const transforms=[];
     for (const e of entries) {
+      if (bareBox && (e.category==='desk' || e.category==='chair')) continue;
       if (e.entry_type==='generic_pattern') {
         add(e,Math.max(ruleScore(e,v,parts),ruleScore(e,v90,parts)));
         continue;
@@ -246,8 +261,8 @@ function match(parts,entries) {
         const w=k%2?v.h:v.w, h=k%2?v.w:v.h;
         const dims=Math.min(closeSize(w,f.width_mm),closeSize(h,f.depth_mm));
         if (dims<0.72 || closeSize(w/h,f.aspect_ratio)<0.8) continue;
-        for (const mirror of [false,true]) {
-          const C=transform(v.segs,k,mirror);
+        for (let m=0;m<2;m++) {
+          const C=transforms[k*2+m] ??= transform(v.segs,k,!!m);
           const hit=coverage(e.segments,C);
           if (hit<0.70) continue;
           const reverse=coverage(C,e.segments);

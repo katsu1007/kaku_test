@@ -13,9 +13,9 @@
 
 ブラウザ版では案件を端末内に保存し、同じGitHub Pagesオリジン上の他のKAKUとは保存領域を分けています。手元で開くにはリポジトリのルートで `python3 -m http.server 8000 --bind 127.0.0.1` を実行し、`http://127.0.0.1:8000/` を開きます。iPhoneアプリ用のIPAはこのテスト版では生成・公開しません。
 
-- **実測形状**：[Innerscene Drawing Library](https://www.innerscene.com/tools/library/drawings/wall-hung-wc-plan-plumbing-and-hvac-cad-symbol-850c442c) の [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) DXFから、壁掛け便器・タンク付き便器・小便器・洗面器・直線デスク・L字デスク・来客用チェアの7点を変換。個別の配布元・ライセンス・SHA-256は `js/reader2/symbol_dictionary.json` に記録しています。
+- **DXF由来の形状**：[Innerscene Drawing Library](https://www.innerscene.com/tools/library/drawings) の [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) DXFから13形状を変換。そのうち机・椅子は9形状です。直線／L字デスク、来客用チェアに、[連結デスク（机のみ／椅子付き）](https://www.innerscene.com/tools/library/drawings/bench-desk-pair-plan-cad-block-0f156e78)、[長方形会議テーブル・椅子セット](https://www.innerscene.com/tools/library/drawings/rectangular-meeting-table-plan-cad-block-f54702ab)、[5本脚のオフィスチェア](https://www.innerscene.com/tools/library/drawings/office-task-chair-plan-cad-block-3d0841c9)、[肘掛け椅子](https://www.innerscene.com/tools/library/drawings/armchair-plan-cad-block-83848260)、[リクライニングチェア](https://www.innerscene.com/tools/library/drawings/recliner-plan-cad-block-bb2d2c86)を追加しました。セットは一つの候補で、席数を見積もりへ転記しません。
 - **汎用ルール**：便器、小便器、洗面器、デスク、ロッカー列の5種。ロッカーは外枠、仕切り線、セル寸法・間隔で判定します。メーカー公式CADの原本や形状データは取り込んでいません。
-- **制限**：形状一致のスコアは検証済みの正答率ではありません。線の欠けや重なり、寸法の違いなどで未検出や誤検出が起こります。PDF・写真は照合対象外です。
+- **読み直しと制限**：保存済みの図面に新しい辞書を使うには「読み直す」で元のJWW・DXFを選び直してください。既存の部屋と図面の紐付けを残したい場合は、案件を複製してからお試しください。形状一致のスコアは正答率ではなく、線の欠け・重なり・寸法差などで未検出や誤検出が起こります。PDF・写真は照合対象外です。
 
 ### 辞書の再生成
 
@@ -25,7 +25,7 @@ python tools/build_symbol_dictionary.py /tmp/kaku-cc0 --download
 node --test tests/*.mjs
 ```
 
-生成器は許諾確認済みのファイルだけを `tools/symbol_sources.json` から取り込み、ファイルのハッシュを照合します。DXF原本はリポジトリに含めません。形状は実寸(mm)の外接矩形・基本図形の数／割合・正規化した線分として保存します。読み込み試験用のJWW/DXFは `tests/e2e/make_symbol_jww.mjs` と `tests/e2e/make_symbol_dxf.py` で生成できます。
+生成器は許諾確認済みのファイルだけを `tools/symbol_sources.json` から取り込み、ファイルのハッシュを照合します。DXF原本はリポジトリに含めません。実寸(mm)の外接矩形・基本図形の数／割合・正規化した線分と、配布元・ライセンス・SHA-256・切り出し範囲（該当する場合）を `js/reader2/symbol_dictionary.json` に記録します。読み込み試験用のJWW/DXFは `tests/e2e/make_symbol_jww.mjs` と `tests/e2e/make_symbol_dxf.py` で生成できます。
 
 ## 2026-11-12 作り直し（2.0）
 

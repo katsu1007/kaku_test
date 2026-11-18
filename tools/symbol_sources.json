@@ -5,5 +5,11 @@
   {"id":"basin_wall","category":"washbasin","label":"壁付洗面器","slug":"wall-basin-plan-plumbing-and-hvac-cad-symbol-7e5accba","sha256":"62b375e035d52186359c8e10f381a6317d156f72ae03f807470d8b58038b9607"},
   {"id":"desk_straight","category":"desk","label":"オフィスデスク（直線）","slug":"straight-desk-plan-cad-block-37bb965b","sha256":"6fb7c37089cb3c8ec7223364933f050c7fb16ceab2470b2255e7e164245c3864"},
   {"id":"desk_corner","category":"desk","label":"オフィスデスク（L字）","slug":"corner-desk-plan-cad-block-8143a44f","sha256":"4bc5b29ebb273c52abd1e0784071cdf313437d3b8661fdd302187681ae250d79"},
-  {"id":"chair_visitor","category":"chair","label":"来客用チェア","slug":"visitor-chair-plan-cad-block-656d39f8","sha256":"c3dd4dc14f7dcc1491b277c3b7953ff444feceb5e22da41f0e3556dab5266a31"}
+  {"id":"chair_visitor","category":"chair","label":"来客用チェア","slug":"visitor-chair-plan-cad-block-656d39f8","sha256":"c3dd4dc14f7dcc1491b277c3b7953ff444feceb5e22da41f0e3556dab5266a31"},
+  {"id":"desk_bench","category":"desk","label":"連結デスク（2席）","slug":"bench-desk-pair-plan-cad-block-0f156e78","sha256":"c14d46c79aa026a9c1aeb3a79283587c00a649424b023ef1dbb59dad0a4f5ef1","selection_box_mm":[0,0,2400,700]},
+  {"id":"desk_bench_set","category":"desk","label":"連結デスク・椅子セット（2席）","slug":"bench-desk-pair-plan-cad-block-0f156e78","sha256":"c14d46c79aa026a9c1aeb3a79283587c00a649424b023ef1dbb59dad0a4f5ef1"},
+  {"id":"desk_meeting_set","category":"desk","label":"長方形会議テーブル・椅子セット（4席）","slug":"rectangular-meeting-table-plan-cad-block-f54702ab","sha256":"0da061957c0b067ebe6ea4a6c0611a08398d4a1b258b4973a6f061d3b2ba0d3a"},
+  {"id":"chair_task","category":"chair","label":"オフィスチェア（5本脚）","slug":"office-task-chair-plan-cad-block-3d0841c9","sha256":"56e3eaad4a0f141db99737269f4e063704b0e00bc2d903a1a4b54f7aed298725"},
+  {"id":"chair_arm","category":"chair","label":"肘掛け椅子（1人掛け）","slug":"armchair-plan-cad-block-83848260","sha256":"14df4f02d3b7d9c8b44bf1e9a329263e7fcfcbbb65e0c69f8193f48bb15c3434"},
+  {"id":"chair_recliner","category":"chair","label":"リクライニングチェア","slug":"recliner-plan-cad-block-bb2d2c86","sha256":"511d398de17c9537a13c67c64d48e8b6626b8f7a6d5d64085cc1ce20338b148e"}
 ]

@@ -7,10 +7,10 @@ import json
 import math
 from pathlib import Path
 from urllib.parse import urlparse
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import ezdxf
-from ezdxf import disassemble, path, units
+from ezdxf import bbox, disassemble, path, units
 
 ROOT = Path(__file__).resolve().parent.parent
 HERE = ROOT / "tools"
@@ -31,6 +31,25 @@ LIMIT = 10_000_000
 
 def read_json(p):
     return json.loads(p.read_text(encoding="utf-8"))
+
+
+def symbol_entities(doc, entry, mm_per_unit):
+    """For a reviewed assembly, optionally select complete entities inside a model-space box."""
+    box = entry.get("selection_box_mm")
+    if box is not None and (len(box) != 4 or not all(math.isfinite(v) for v in box)
+                            or box[0] >= box[2] or box[1] >= box[3]):
+        raise ValueError(f"invalid selection box: {entry['id']}")
+    for e in disassemble.recursive_decompose(doc.modelspace()):
+        if e.dxftype() not in KINDS or e.dxf.get("invisible", 0):
+            continue
+        if box is not None:
+            b = bbox.extents([e])
+            if not b.has_data or not (
+                box[0] - 1e-6 <= b.extmin.x * mm_per_unit <= b.extmax.x * mm_per_unit <= box[2] + 1e-6
+                and box[1] - 1e-6 <= b.extmin.y * mm_per_unit <= b.extmax.y * mm_per_unit <= box[3] + 1e-6
+            ):
+                continue
+        yield e
 
 
 def sample(entry, input_dir, download):
@@ -55,7 +74,8 @@ def sample(entry, input_dir, download):
         raise ValueError("MIT/BSD entries must include the upstream copyright and license text in notice")
     f = input_dir / name
     if download and direct and not f.exists():
-        with urlopen(direct, timeout=30) as response:
+        request = Request(direct, headers={"User-Agent": "KAKU-Symbol-Dictionary/1.0"})
+        with urlopen(request, timeout=30) as response:
             data = response.read(LIMIT + 1)
         if len(data) > LIMIT or hashlib.sha256(data).hexdigest() != entry["sha256"]:
             raise ValueError(f"download is too large or SHA-256 mismatch: {name}")
@@ -74,10 +94,8 @@ def sample(entry, input_dir, download):
         raise ValueError(f"unitless DXF requires an explicit insunits override: {name}")
     m = units.conversion_factor(unit, units.MM)
     counts, strokes, length = Counter(), [], Counter()
-    for e in disassemble.recursive_decompose(doc.modelspace()):
-        kind = KINDS.get(e.dxftype())
-        if not kind or e.dxf.get("invisible", 0):
-            continue
+    for e in symbol_entities(doc, entry, m):
+        kind = KINDS[e.dxftype()]
         if kind == "line":
             points = [e.dxf.start, e.dxf.end]
         elif kind in {"arc", "circle", "ellipse"}:
@@ -110,7 +128,8 @@ def sample(entry, input_dir, download):
     return {
         "id": entry["id"], "category": entry["category"], "label": entry["label"], "entry_type": "observed",
         "provenance": {"license": license_id, "license_url": LICENSE[license_id], "source_url": source,
-                       "source_file": name, "sha256": digest, **({"notice": notice} if notice else {})},
+                       "source_file": name, "sha256": digest, **({"notice": notice} if notice else {}),
+                       **({"selection_box_mm": entry["selection_box_mm"]} if "selection_box_mm" in entry else {})},
         "features": {"width_mm": round(w, 3), "depth_mm": round(h, 3), "aspect_ratio": round(w/h, 6),
                      "primitive_counts": dict(sorted(counts.items())),
                      "primitive_ratios": {k: round(v/sum(counts.values()), 6) for k,v in sorted(counts.items())},
@@ -137,6 +156,13 @@ def main():
                 raise ValueError(f"invalid or duplicate entry: {e['id']}")
             ids.add(e["id"])
         observed = [sample(e, args.input_dir, args.download) for e in sources]
+        shapes = set()
+        for e in observed:
+            key = (e["category"], e["features"]["width_mm"], e["features"]["depth_mm"],
+                   tuple(sorted(tuple(sorted((tuple(s[:2]), tuple(s[2:])))) for s in e["segments"])))
+            if key in shapes:
+                raise ValueError(f"duplicate geometry: {e['id']}")
+            shapes.add(key)
         generic = [{**e, "entry_type": "generic_pattern", "provenance": {"kind": "original_heuristic"}} for e in patterns]
     except (OSError, ValueError, KeyError, TypeError, ezdxf.DXFError) as exc:
         p.exit(1, f"辞書は出力されませんでした: {exc}\n")
