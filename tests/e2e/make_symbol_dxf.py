@@ -38,13 +38,19 @@ model.add_lwpolyline([(3000, 15000), (4200, 15000), (4200, 15450), (3000, 15450)
                      close=True, dxfattribs={"layer": "SYMBOLS"})
 for x in (3400, 3800):
     model.add_line((x, 15000), (x, 15450), dxfattribs={"layer": "SYMBOLS"})
-model.add_circle((7000, 15000), 210, dxfattribs={"layer": "SYMBOLS"})
-for i in range(4):
-    a = .31 + i * math.pi / 2
-    x, y = math.cos(a), math.sin(a)
-    model.add_line((7000 + 120*x, 15000 + 120*y), (7000 + 210*x, 15000 + 210*y),
-                   dxfattribs={"layer": "SYMBOLS"})
-model.add_circle((16000, 15000), 210, dxfattribs={"layer": "SYMBOLS"})
+def stool(cx, angles, inner=120):
+    model.add_circle((cx, 15000), 210, dxfattribs={"layer": "SYMBOLS"})
+    for a in angles:
+        x, y = math.cos(a), math.sin(a)
+        model.add_line((cx + inner*x, 15000 + inner*y), (cx + 210*x, 15000 + 210*y),
+                       dxfattribs={"layer": "SYMBOLS"})
+
+# 4本の既存例、1本・2本の追加例、円だけ・中心に届く線の対照。
+stool(7000, [.31 + i * math.pi / 2 for i in range(4)])
+stool(8500, [-.31])
+stool(12000, [.31, .31 + math.pi / 2])
+stool(16000, [])
+stool(17500, [.31], inner=0)
 model.add_lwpolyline([(14000, 15000), (14480, 15000), (14480, 15500), (14000, 15500)],
                      close=True, dxfattribs={"layer": "SYMBOLS"})
 doc.saveas(output_dir / "symbol-test-office.dxf")

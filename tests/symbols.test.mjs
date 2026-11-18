@@ -47,23 +47,27 @@ test('ソファ3種・ハイチェア・オットマンを回転、鏡像、寸�
   assert.deepEqual(recognize({segs:symbol('chair_ottoman',2,3,.43).slice(0,36)}),[]);
 });
 
-test('丸スツールは脚線のある円を類似に出す。円だけ、同心円、中心で交わる線は除外', () => {
+test('丸スツールは脚線1〜4本で類似。円だけ・同心円・中心線などは除外', () => {
   const p=(a,r)=>[3+r*Math.cos(a),4+r*Math.sin(a)];
   const circle=r=>Array.from({length:32},(_,i)=>[...p(i*Math.PI/16,r),...p((i+1)*Math.PI/16,r)]);
-  const legs=(n,inner,a=.27)=>Array.from({length:n},(_,i)=>{
-    const angle=a+i*2*Math.PI/n;
-    return [...p(angle,inner),...p(angle,.21)];
-  });
-  for (const n of [3,4]) {
-    const segs=legs(n,.12), native=cadSymbolParts([{k:'circle',c:[3,4],r:.21},
-      ...segs.map(([x,y,u,v])=>({k:'line',a:[x,y],b:[u,v]}))],1);
+  const leg=(a,inner=.12)=>[...p(a,inner),...p(a,.21)];
+  const legs=n=>Array.from({length:n},(_,i)=>leg(.27+i*2*Math.PI/n));
+  const nativeParts=lines=>cadSymbolParts([{k:'circle',c:[3,4],r:.21},
+    ...lines.map(([x,y,u,v])=>({k:'line',a:[x,y],b:[u,v]}))],1);
+  for (const [name,segs] of [['1本',legs(1)],['向かい合う2本',legs(2)],
+    ['隣り合う2本',[leg(-.27),leg(-.27+Math.PI/2)]],['3本',legs(3)],['4本',legs(4)]]) {
+    const native=nativeParts(segs);
     for (const geometry of [{segs:[...circle(.21),...segs]},{parts:native}]) {
-      assert.deepEqual(recognize(geometry).map(x=>[x.id,x.status]),[['generic_round_stool','similar']]);
+      assert.deepEqual(recognize(geometry).map(x=>[x.id,x.status]),[['generic_round_stool','similar']],name);
     }
   }
-  for (const extras of [[],circle(.15),legs(4,0),legs(2,.12),[...legs(3,.12),...legs(1,.12,1.17)]]) {
-    assert.deepEqual(recognize({segs:[...circle(.21),...extras]}),[]);
+  for (const [name,extras] of [['円だけ',[]],['同心円',circle(.15)],['中心への線',[leg(.27,0)]],
+    ['直径線',[[...p(0,.21),...p(Math.PI,.21)]]],['輪郭沿いの短い線',[[...p(.27,.18),...p(.27,.21)]]],
+    ['接線に近い線',[[...p(.70,.14),...p(.27,.21)]]],['近すぎる2本',[leg(.27),leg(.47)]],
+    ['不規則な4本',[...legs(3),leg(1.17)]]]) {
+    assert.deepEqual(recognize({segs:[...circle(.21),...extras]}),[],name);
   }
+  assert.deepEqual(recognize({segs:[...circle(.21).slice(0,29),...legs(1)]}),[],'輪郭の裏付けが弱い1本脚');
 });
 
 test('家具の寸法に近くても、四角い外枠・円・ドアの開きは家具と判定しない', () => {

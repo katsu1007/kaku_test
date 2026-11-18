@@ -190,8 +190,8 @@ function linearEvidence(v) {
   return {edge:Math.min(...edge.map((d,i) => intervals(d)/(i<2?w:h))), cuts:cuts.length, gaps, inset:inset.length};
 }
 
-// Accept a round seat with distinct, evenly spaced short leg marks. Apply the
-// same geometry test to native circles and JWW linework; do not infer height.
+// Sparse leg marks need a more complete rim. Apply the same geometry test to
+// native circles and JWW linework; do not infer height.
 function roundStoolScore(p,{rr,b:[x0,y0,x1,y1]}) {
   const cx=(x0+x1)/2, cy=(y0+y1)/2, r=(x1-x0+y1-y0)/4, tau=Math.PI*2;
   const rim=[], legs=[];
@@ -212,8 +212,14 @@ function roundStoolScore(p,{rr,b:[x0,y0,x1,y1]}) {
       legs.push((Math.atan2(b+d,a+c)+tau)%tau);
     } else otherLength+=len;
   }
-  if (!p.leg_counts.includes(legs.length) || otherLength>0.12 ||
-      intervals(rim)<p.rim_coverage_min*tau) return 0;
+  if (!p.leg_counts.includes(legs.length) || otherLength>0.12) return 0;
+  const minRim=legs.length<=2 ? p.sparse_leg_rim_coverage_min : p.rim_coverage_min;
+  if (intervals(rim)<minRim*tau) return 0;
+  if (legs.length===1) return 0.73;
+  if (legs.length===2) {
+    const gap=Math.abs(legs[1]-legs[0]);
+    return Math.min(gap,tau-gap)>=p.two_leg_separation_min_deg*Math.PI/180 ? 0.75 : 0;
+  }
   legs.sort((a,b)=>a-b);
   return legs.every((a,i)=>{
     const next=legs[i+1] ?? legs[0]+tau;

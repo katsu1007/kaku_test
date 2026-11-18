@@ -16,12 +16,19 @@ const circle = (x,y,r,n=32) => Array.from({length:n},(_,i)=>{
   const p=j=>[x+r*Math.cos(j*2*Math.PI/n),y+r*Math.sin(j*2*Math.PI/n)];
   return [...p(i),...p(i+1)];
 });
-const stool = [...circle(7,15,.21),...Array.from({length:3},(_,i)=>{
-  const a=.23+i*2*Math.PI/3, p=r=>[7+r*Math.cos(a),15+r*Math.sin(a)];
-  return [...p(.12),...p(.21)];
+const stool = (x, angles, inner=.12) => [...circle(x,15,.21),...angles.map(a=>{
+  const p=r=>[x+r*Math.cos(a),15+r*Math.sin(a)];
+  return [...p(inner),...p(.21)];
 })];
+const stools = [
+  ...stool(7,[.23,.23+2*Math.PI/3,.23+4*Math.PI/3]),
+  ...stool(8.5,[-.31]),
+  ...stool(12,[.31,.31+Math.PI/2]),
+  ...stool(16,[]),
+  ...stool(17.5,[.31],0),
+];
 // --include-unknown で線の欠けた机を加え、3種類の表示を同じ図面で確認する。
 const weak = process.argv.includes('--include-unknown') ?
   scale(D.symbols.find(x=>x.id==='desk_straight'),10.6,15).filter((_,j)=>j%3!==1) : [];
-writeFileSync(process.argv[2],jww({lines:[...shell,...symbols,...lockers,...weak,...stool,...circle(16,15,.21),...rect(14,15,.48,.5)],
+writeFileSync(process.argv[2],jww({lines:[...shell,...symbols,...lockers,...weak,...stools,...rect(14,15,.48,.5)],
   texts:[{s:'事務室',x:6,y:16,h:2.5,layer:2}]},50));
