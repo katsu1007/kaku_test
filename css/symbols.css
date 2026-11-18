@@ -1,0 +1,11 @@
+.dwg-symbols { margin: 10px 0; }
+.dwg-symbols summary { font-weight: 700; }
+.dwg-symbols p { margin: 6px 0; }
+.dwg-symbol-toggle { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; cursor: pointer; }
+.dwg-symbol-toggle input { accent-color: var(--accent); }
+.dwg-symbol-list { display: grid; gap: 6px; max-height: 240px; overflow: auto; padding: 2px; }
+.dwg-symbol-btn { justify-content: space-between; text-align: left; white-space: normal; flex-wrap: wrap; gap: 4px 12px; min-height: 44px; }
+.dwg-symbol-btn[aria-pressed="true"] { border-color: var(--accent); }
+.dwg-symbol-box { fill: #009b85; fill-opacity: .11; stroke: #008573; stroke-width: 2px; stroke-dasharray: 5 3; }
+.dwg-symbol-box.selected { stroke: #008573; stroke-width: 3px; stroke-dasharray: none; fill-opacity: .19; }
+html[data-theme="dark"] .dwg-symbol-box { stroke: #55dec1; }

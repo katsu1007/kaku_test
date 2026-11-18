@@ -1,0 +1,9 @@
+[
+  {"id":"wc_wall","category":"toilet","label":"洋式大便器（壁掛け）","slug":"wall-hung-wc-plan-plumbing-and-hvac-cad-symbol-850c442c","sha256":"b7514a3a082b56c112a0df1d6af37e5c438c7f8a54537007bf5aac5a7fe6e635"},
+  {"id":"wc_tank","category":"toilet","label":"洋式大便器（タンク付き）","slug":"close-coupled-wc-plan-plumbing-and-hvac-cad-symbol-ec340edd","sha256":"956636941db239a61fa30204ec69a6b8be5ae519e11d2f1173c4cdf513ceafd1"},
+  {"id":"urinal_wall","category":"urinal","label":"壁付小便器","slug":"urinal-plan-plumbing-and-hvac-cad-symbol-6caa0d4f","sha256":"47413430f553816caff0dd34da2186b42053eacbbf34d4b16175f64b2fc6941d"},
+  {"id":"basin_wall","category":"washbasin","label":"壁付洗面器","slug":"wall-basin-plan-plumbing-and-hvac-cad-symbol-7e5accba","sha256":"62b375e035d52186359c8e10f381a6317d156f72ae03f807470d8b58038b9607"},
+  {"id":"desk_straight","category":"desk","label":"オフィスデスク（直線）","slug":"straight-desk-plan-cad-block-37bb965b","sha256":"6fb7c37089cb3c8ec7223364933f050c7fb16ceab2470b2255e7e164245c3864"},
+  {"id":"desk_corner","category":"desk","label":"オフィスデスク（L字）","slug":"corner-desk-plan-cad-block-8143a44f","sha256":"4bc5b29ebb273c52abd1e0784071cdf313437d3b8661fdd302187681ae250d79"},
+  {"id":"chair_visitor","category":"chair","label":"来客用チェア","slug":"visitor-chair-plan-cad-block-656d39f8","sha256":"c3dd4dc14f7dcc1491b277c3b7953ff444feceb5e22da41f0e3556dab5266a31"}
+]

@@ -3483,7 +3483,7 @@ window.KakuEngine={
     else rooms=(imp.rooms||[]).filter(r=>r.on!==false).map(r=>({name:r.name,area:+r.area||0,peri:+r.peri||0,w:0,h:0,source:r.from||"図面テキスト"}));
     return {rooms,message:RG?.msg||imp.msg||"読み込み完了",geometry:!!(RG&&RG.faces&&RG.faces.length)};
   },
-  plan(){if(!RG||!RG.faces||!RG.faces.length)return null;const M=rgM(),on=new Set(RG.groups.filter(g=>g.on).map(g=>g.key));
+  plan(opt){if(!RG||!RG.faces||(!RG.faces.length&&!(opt&&opt.allowNoFaces&&RG.segs.length)))return null;const M=rgM(),on=new Set(RG.groups.filter(g=>g.on).map(g=>g.key));
     let segs=[];RG.segs.forEach((s,i)=>{if(!on.has(gkey(s)))return;if(RG.autoHatch&&RG.hatch&&RG.hatch.has(i))return;const a=KAKU_rerot([s[1]*M,s[2]*M],M),b=KAKU_rerot([s[3]*M,s[4]*M],M);segs.push([a[0],a[1],b[0],b[1]])});
     /* 線は間引かない（間引くと壁が途切れて見え、扉の無い開口を多く見つけてしまう。kaku_generation で変更） */
     /* 点線の線（部屋の区画には使わない）は、表示用に点線のまま渡す。通り芯（基準線）は描かない */

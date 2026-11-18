@@ -8,6 +8,7 @@ permissions:
   contents: write
 jobs:
   build:
+    if: github.repository == 'katsu1007/kaku_generation'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4

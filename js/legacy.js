@@ -1,7 +1,9 @@
 /* 器具とドア・開口の読み取り。
  * 前のKAKU（old/）の読み取りの部分を、画面に出さずに裏で動かして結果だけもらう。
- * 読み取りの精度を変えないため、前のKAKUのコードには手を入れない（テスト図面22枚と実図面で同じ結果になることを確かめてある）。
+ * 辞書に使う線は既存の器具処理の前に別に受け取り、従来の判定・数量とは分ける。
  * 前のKAKUの保存場所には、作業用の案件と図面を残さない（読み終わったら消す）。 */
+
+import { cadSymbolParts } from './reader2/symbols.js';
 
 let readerPromise = null;
 export function getReader() {
@@ -25,8 +27,6 @@ export function getReader() {
   return readerPromise;
 }
 
-const wait = (fn, ms) => new Promise(res => { const t0 = Date.now(); const t = setInterval(() => { let v; try { v = fn(); } catch (e) { v = null; } if (v || Date.now() - t0 > ms) { clearInterval(t); res(v); } }, 100); });
-
 /* JWW・DXF を読んで、図面（区画）・器具・ドア・開口を返す。
  * 前のKAKUの変数（KAKU_plan・current・data など）は let で宣言されていて window から見えないので、
  * 前のKAKUの中で式を評価して読み書きする（W.eval） */
@@ -46,10 +46,10 @@ export async function readWithFixtures(file, opt = {}) {
     dt.items.add(new W.File([await file.arrayBuffer()], file.name, { type: file.type || 'application/octet-stream' }));
     W.document.getElementById('file').files = dt.files;
     await step('線を読んで、部屋の区画を探しています');
-    G('KAKU_plan=null;KAKU_fix=null;runDrawingImport()');
-    const ok = await wait(() => G('KAKU_plan'), 90000);
-    if (!ok) throw new Error('図面を読めませんでした（時間切れ）');
-    await wait(() => G('KAKU_fix'), 8000);
+    let symbolParts = null;
+    G('KAKU_plan=null;KAKU_fix=null');
+    await W.runDrawingImport(opt.symbols ? { onSymbolGeometry: (ents, m) => { symbolParts = cadSymbolParts(ents, m); } } : undefined);
+    if (!G('KAKU_plan')) throw new Error('部屋の区画または記号を確認できるCADの線が見つかりませんでした');
     await step('器具・ドア・開口を調べています');
     const R = G(`(()=>{const P=KAKU_plan,F=KAKU_fix,q=v=>Math.round(v*1000)/1000;
       const plan={segs:P.segs.map(s=>s.map(q)),dsegs:(P.dsegs||[]).map(s=>s.map(q)),gsegs:(P.gsegs||[]).map(s=>s.map(q)),
@@ -60,6 +60,7 @@ export async function readWithFixtures(file, opt = {}) {
         Object.keys(O).forEach(k=>{open[k]=O[k].map(r=>({ty:r.ty,len:Math.round(r.len*100)/100,a:r.a.map(q),b:r.b.map(q),n:r.n.map(q)}))})}
       return JSON.stringify({plan,fixtures,open,doors:F&&F.doors?F.doors.length:0,doorList:(F&&F.doors||[]).filter(d=>d&&d.c).map(d=>({c:d.c.map(q),m:(d.m||d.c).map(q),r:+d.r||0.8})),fixG:F&&F.g||'',fixGd:F&&F.gd||''})})()`);
     const out = JSON.parse(R);
+    if (opt.symbols) out.symbolParts = symbolParts;
     /* 画面に出す線：読み取りの部品は線が9,000本を超えると「何本かおきに1本」に間引いて渡してくる（壁が途切れて見える・タップできない）。
      * 読み取りに使った線を全部もらって入れ替える。開口（扉の無い開口）の計算は前のKAKUの中で今まで通り間引いた線のまま行うので、数字は変わらない */
     try {
@@ -82,7 +83,7 @@ export async function readWithFixtures(file, opt = {}) {
     /* 新しい読み取り・段階3：線のまとまりの「使う・使わない」を選び直して、同じ区画探しをもう一度回す。
      * opt.regroup(out, raw) が「使わないにするまとまりの番号」を返した時だけ回す。回した後は元の選び方に戻して探し直すので、今の読み取りの結果は変わらない。
      * 開口（ドア・扉の無い開口）は、前のKAKUの調べ方に、探し直した区画を一時的に渡して出す */
-    if (opt.regroup) {
+    if (opt.regroup && out.plan.faces.length) {
       await step('新しい読み取り（試し）の区画を探しています');
       try {
         const E = W.document.getElementById('engineFrame').contentWindow;

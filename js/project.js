@@ -6,6 +6,7 @@ import { makerLinks } from './makers.js';
 import { analyzeAll as analyzeFrame, VER as R2VER } from './reader2/index.js';
 import { groupRoles, ROLE } from './reader2/lines.js';
 import { modelFor, normalizeText } from './reader2/text.js';
+import { loadSymbolDictionary, recognizeSymbols } from './reader2/symbols.js';
 import { SYS, MANY, sysOptions, rebuild, PIPE_LOSS } from './piping.js';
 import { importDrawing, groupGeom, roomHoles, planCH, orderFaces as orderFacesOf } from './drawing.js';
 import { readWithFixtures, oldFaceLights, roomOpenRuns, FIX_NAMES, FIX_ITEMS, FIX_WORDS } from './legacy.js';
@@ -257,7 +258,7 @@ function drawingCard(p) {
       <div class="small muted" id="dwgStatus" style="margin-top:8px"></div>${elecRow(p)}</div>`;
   return `<div class="card" style="margin-bottom:14px">
     <div class="row" style="margin-bottom:10px"><div style="flex:1;min-width:200px"><h2>${icon('layers').replace('<svg', '<svg style="width:18px;height:18px;vertical-align:-3px"')} ${esc(d.fileName || '図面')}</h2>
-      <div class="sub" style="margin:0">区画 ${d.plan.faces.length} 個${planCH(d.plan) ? `・図面の天井高 ${planCH(d.plan)}m` : ''}。区画をタップして選び、下のボタンで部屋にしてください。</div></div>
+      <div class="sub" style="margin:0">${d.plan.faces.length ? `区画 ${d.plan.faces.length} 個${planCH(d.plan) ? `・図面の天井高 ${planCH(d.plan)}m` : ''}。区画をタップして選び、下のボタンで部屋にしてください。` : '部屋の区画は見つかりませんでした。記号候補は図面で確認できます。'}</div></div>
       ${d.fixtures ? `<button class="btn sm primary" data-act="open3d">${icon('cube')}3Dで見る</button>` : ''}
       ${d.sketch ? `<button class="btn sm" data-act="sketch">${icon('grid')}間取りを直す</button>` : ''}
       <button class="btn sm" data-act="cadOut">${icon('down')}JWW・DXF</button>
@@ -266,12 +267,29 @@ function drawingCard(p) {
     <div id="dwgEdit" class="${dwgFs ? 'dwg-fs' : ''}"><div class="dwg-fs-head"><b class="small" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name || '図面')}</b><button class="btn sm" data-act="dwgFs">${icon('shrink')}全画面をやめる</button></div>
     <div class="seg" id="dwgMode" style="margin-bottom:8px"><button data-mode="room">部屋を作る</button><button data-mode="fix">器具を直す</button><button data-mode="wall">壁の解体・仕上げ</button><button data-mode="cut">カッター</button><button data-mode="light">照明・配線</button><button data-mode="place">器具を置く</button><button data-mode="meas">測る</button></div>
     ${oldReadRow(d)}${sheetRow(d)}<div id="dwgView"></div>${sheetNotes(d)}${titleRow(p)}
+    ${symbolPanel(d)}
     <div class="addbar" style="margin-top:10px" id="dwgBar"></div></div>
     <div id="dwgDemo"></div>
     <div id="dwgFix">${fixSummary(d)}</div>${elecRow(p)}
     <details class="more"><summary>区画の一覧から選ぶ（図面で押しにくい小さい区画など）</summary><div class="facelist" id="dwgFaces"></div></details>
     ${r2row(d)}
     <div class="small muted" id="dwgStatus" style="margin-top:6px"></div></div>`;
+}
+
+function symbolPanel(d) {
+  const r = d.symbols;
+  if (!r && !/\.(jww|jwc|dxf)$/i.test(d.fileName || '')) return '';
+  const list = r?.matches || [];
+  const note = !r || r.unavailable ? 'この図面には照合結果がありません。JWW・DXFを読み直すと照合します。' :
+    r.limited ? '図面が複雑なため、一部を照合できませんでした。' :
+    list.length ? '見積数量には反映しません。候補を選ぶと図面上の位置を拡大します。' :
+      '辞書に一致する記号は見つかりませんでした。図面に器具がないという意味ではありません。';
+  return `<details class="more dwg-symbols"${list.length ? ' open' : ''}><summary>設備・什器の記号候補${r && !r.unavailable ? ` ${list.length}件` : ''}</summary>
+    <p class="small muted">${note}</p>
+    ${list.length ? `<label class="small dwg-symbol-toggle"><input type="checkbox" data-symbol-toggle>図面に候補枠を表示</label>
+    <div class="dwg-symbol-list">${list.map((x,i) => `<button type="button" data-symbol="${i}" aria-pressed="false" class="btn dwg-symbol-btn">
+      <span>${esc(x.label)}</span><span class="small muted">${x.entry_type === 'observed' ? `CC0実測形状・形状一致 ${Number(x.score)}/100` : '汎用ルール'}</span></button>`).join('')}</div>` : ''}
+  </details>`;
 }
 
 /* 新しい読み取りで分かったことの続き：つないだ文字・名前の提案・器具ではない物・表の設備機器 */
@@ -578,6 +596,7 @@ function stepRooms(ctx) {
   const { p, body, refresh } = ctx;
   const sel = new Set();
   let view = null;
+  let symbolsOn = false, symbolSel = -1;
   let mode = 'room', fsel = -1, addAt = null, cutA = null, ltool = 'light', linkSel = null;
   let holesOn = true, selGeoKey = '', selGeo = null;   // 選んでいる区画の中の「囲まれた所」を床に入れるか（部屋にする前に決める）
   let sheetZoom = '';   // 大きく出している図（図枠・段の位置のキー）。'' は全体
@@ -756,7 +775,16 @@ function stepRooms(ctx) {
     if (mode === 'room' && sel.size) { const key = [...sel].sort((a, b) => a - b).join(','); if (key !== selGeoKey) { selGeoKey = key; selGeo = geoOf(withJoined([...sel])); }
       if (selGeo && selGeo.holes && holesOn) { const cs = selGeo.holes.cs; selHoles = `<path d="${selGeo.holes.runs.map(q => `M${q[0]} ${-(q[2] + cs)}H${q[1]}V${-q[2]}H${q[0]}Z`).join('')}" fill="var(--accent)" fill-opacity=".35" stroke="none" pointer-events="none"/>`; } }
     else { selGeoKey = ''; selGeo = null; }
-    if (view) { view.paint(); view.overlay(selHoles + sheetOverlay(p.drawing, view.lw, allTexts()) + demoOverlay() + placeOverlay() + (mode === 'meas' || addAt ? measOverlay() : '')); }
+    if (view) {
+      const symbolBox = symbolsOn ? (p.drawing.symbols?.matches || []).map((x,i) => {
+        if (!Array.isArray(x.b) || x.b.length !== 4 || !x.b.every(Number.isFinite)) return '';
+        const [a,b,c,d] = x.b, on = i === symbolSel;
+        return `<rect x="${a}" y="${-d}" width="${c-a}" height="${d-b}" class="dwg-symbol-box${on ? ' selected' : ''}" pointer-events="none" vector-effect="non-scaling-stroke"/>`;
+      }).join('') : '';
+      view.paint(); view.overlay(selHoles + sheetOverlay(p.drawing, view.lw, allTexts()) + symbolBox + demoOverlay() + placeOverlay() + (mode === 'meas' || addAt ? measOverlay() : ''));
+    }
+    const toggle = $('[data-symbol-toggle]', body); if (toggle) toggle.checked = symbolsOn;
+    $$('[data-symbol]', body).forEach(b => b.setAttribute('aria-pressed', String(symbolsOn && Number(b.dataset.symbol) === symbolSel)));
     const demoBox = body.querySelector('#dwgDemo'); if (demoBox) demoBox.innerHTML = demoList();
     const fxBox = body.querySelector('#dwgFix'); if (fxBox) fxBox.innerHTML = fixSummary(p.drawing);
     if (mode !== 'room') {
@@ -1163,7 +1191,7 @@ function stepRooms(ctx) {
         if (pic) { if (st) st.textContent = ''; openSk(pic); e.target.value = ''; return; }
         if (cad) {
           /* 新しい読み取り・段階3：壁ではなさそうな線のまとまり（細かい線・寸法・表や図枠）を外して、区画を探し直した結果も一緒にもらう（別に覚えるだけ） */
-          res = await readWithFixtures(cad, { step: showStep, regroup: (out, raw) => {
+          res = await readWithFixtures(cad, { symbols: true, step: showStep, regroup: (out, raw) => {
             try { const A1 = analyzeFrame({ segs: out.longSegs && out.longSegs.length ? out.longSegs : out.plan.segs, faces: out.plan.faces, texts: out.texts || [], fixtures: out.fixtures || [], doors: out.doorList || [] });
               const g = groupRoles({ segs: raw.segs, groups: raw.groups, texts: out.texts || [], regions: A1.regions });
               out.roles = {}; Object.keys(g.off).forEach(i => { const r = g.off[i], o = g.stats.find(x => x.gi === +i); out.roles[r] = (out.roles[r] || 0) + (o ? o.n : 0); });
@@ -1171,16 +1199,26 @@ function stepRooms(ctx) {
             } catch (e2) { console.warn('線の役割を見分けられませんでした', e2); return []; } } });
           orderFacesOf(res.plan); res.plan.order = 2;
         } else res = await importDrawing(files);
-        if (!res.plan || !res.plan.faces.length) { const msg = res.message || '部屋の区画が見つかりませんでした'; if (st) st.textContent = msg;
+        if (!res.plan || (!res.plan.faces.length && !(cad && res.plan.segs.length))) { const msg = res.message || '部屋の区画が見つかりませんでした'; if (st) st.textContent = msg;
           const img = !cad && files.find(f => /\.(pdf|png|jpe?g|heic|webp|gif)$/i.test(f.name) || /^image\/|pdf/.test(f.type));
           if (img && await ask('区画が見つかりませんでした', 'この図を下に敷いて、部屋の角をなぞって拾いますか？（写真・スキャンのPDFは、なぞって拾えます）', { ok: 'なぞって拾う' })) { openSk(img); return; }
           toast(msg, { bad: true }); return; }
+        let analysis, symbols;
+        if (cad) {
+          try { analysis = analyzeFrame({ segs: res.longSegs?.length ? res.longSegs : res.plan.segs, faces: res.plan.faces, texts: res.texts || [], fixtures: res.fixtures || [], doors: res.doorList || [] }); } catch (e2) { console.warn('新しい読み取りの解析に失敗', e2); }
+          showStep('設備・什器の記号を辞書と照合しています');
+          try {
+            if (!res.symbolParts?.length) throw new Error('記号に使える線がありません');
+            const dictionary = await loadSymbolDictionary();
+            symbols = { ...recognizeSymbols({ parts: res.symbolParts, regions: analysis?.regions }, dictionary), version: dictionary.schema_version };
+          } catch (e2) { symbols = { unavailable: true }; console.warn('記号の辞書照合を行えませんでした', e2); }
+        }
         p.rooms.forEach(r => { if (r.src === 'plan') { r.src = 'plan-old'; delete r.faces; } });
         p.drawing = { fileName: (cad ? [cad] : files).map(f => f.name).join('、'), at: Date.now(), plan: res.plan, fixtures: cad ? res.fixtures : null, open: cad ? res.open : null, doors: cad ? (res.doorList || []) : [], fixG: cad ? res.fixG : '', fixGd: cad ? res.fixGd : '' };
         /* 新しい読み取り（js/reader2）：図枠・表の印を作って覚えておく。今の読み取りの結果（区画・器具）は変えない。画面に出すのは「新しい読み取り」を選んだ時だけ */
         /* 解析を後で作り直せるように、文字・長い線・ドアを覚えておく（解析の作りを直した時、開いただけで新しい解析になる） */
         if (cad) p.drawing.src2 = { texts: res.texts || [], segs: res.longSegs && res.longSegs.length ? res.longSegs : [], doors: res.doorList || [] };
-        if (cad) { try { p.drawing.analysis = analyzeFrame({ segs: res.longSegs && res.longSegs.length ? res.longSegs : res.plan.segs, faces: res.plan.faces, texts: res.texts || [], fixtures: res.fixtures || [], doors: res.doorList || [] }); } catch (e2) { console.warn('新しい読み取りの解析に失敗', e2); } }
+        if (cad) { if (analysis) p.drawing.analysis = analysis; p.drawing.symbols = symbols; }
         if (cad && res.v2) { try { const P2 = { faces: res.v2.faces }; orderFacesOf(P2);
           /* 扉の無い開口は「区画の辺に壁の線が無い所」で決めるので、区画の形が壁の線に沿っていないと、辺のほとんどが開口になる。
            * 開口が周りの3割以上になる区画は、形が合っていないと見て、扉の無い開口を引かない（分からない物を引かない。ドアは残す） */
@@ -1202,8 +1240,8 @@ function stepRooms(ctx) {
             if (f2.xc !== undefined) delete f2.xc;
             const k2 = String(f2.i), r1 = O1[String(f1.i)]; if (r1 && r1.length) op2[k2] = r1; else delete op2[k2]; });
           p.drawing.v2 = { faces: P2.faces, open: op2, openDrop: drop, same, roles: res.roles || {}, single: res.single || 0, analysis: analyzeFrame({ segs: res.longSegs && res.longSegs.length ? res.longSegs : res.plan.segs, faces: P2.faces, texts: res.texts || [], fixtures: res.fixtures || [], doors: res.doorList || [], shapes: true }) }; } catch (e2) { console.warn('探し直した区画の解析に失敗', e2); } }
-        sel.clear(); touch(p); draw();
-        toast(`区画を ${res.plan.faces.length} 個${cad ? `、器具を ${res.fixtures.filter(x => x.t !== 'other').length} 個` : ''}見つけました`);
+        symbolsOn = false; symbolSel = -1; sel.clear(); touch(p); draw();
+        toast(`区画を ${res.plan.faces.length} 個${cad ? `、器具を ${res.fixtures.filter(x => x.t !== 'other').length} 個` : ''}見つけました${symbols?.matches?.length ? `。記号候補 ${symbols.matches.length} 件` : ''}`);
       } catch (err) {
         if (st) st.textContent = '読み込めませんでした：' + err.message;
         toast('図面を読み込めませんでした：' + err.message, { bad: true });
@@ -1226,6 +1264,7 @@ function stepRooms(ctx) {
     touch(p); refresh();
   });
   body.addEventListener('change', e => {
+    if (e.target.matches('[data-symbol-toggle]')) { symbolsOn = e.target.checked; if (!symbolsOn) symbolSel = -1; paintSel(); return; }
     if (e.target.matches('[data-holes]')) { holesOn = e.target.checked; paintSel(); return; }
     if (e.target.matches('[data-sheet]')) {
       const d = p.drawing; d.sheetUse = { ...(d.sheetUse || {}), [e.target.dataset.sheet]: e.target.checked };
@@ -1276,6 +1315,16 @@ function stepRooms(ctx) {
     if (k && fsel >= 0) { const x = fxList()[fsel]; if (!x) return; x[k] = e.target.value; x.edited = true; if (k === 'back' || k === 't') x.out = null; touch(p); paintSel(); }
   });
   body.addEventListener('click', async e => {
+    const sb = e.target.closest('[data-symbol]');
+    if (sb) {
+      const i = Number(sb.dataset.symbol), b = p.drawing?.symbols?.matches?.[i]?.b;
+      if (!view || !b || !b.every(Number.isFinite)) return;
+      const pad = Math.max(b[2]-b[0], b[3]-b[1], 0.35) * 0.65;
+      symbolsOn = true; symbolSel = i; sheetZoom = '';
+      view.zoomTo([b[0]-pad,b[1]-pad,b[2]+pad,b[3]+pad]); paintSel();
+      if (e.detail !== 0) body.querySelector('#dwgView')?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
     const fsb = e.target.closest('[data-act="dwgFs"]');
     if (fsb) { dwgFs = !dwgFs; document.body.classList.toggle('dwg-fs-on', dwgFs); draw(); return; }
     const sz = e.target.closest('[data-sheetzoom]');

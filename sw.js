@@ -1,13 +1,15 @@
 /* KAKU Service Worker — オフライン対応とキャッシュ管理
  * アプリを更新したら VERSION の数字を上げてください（古いキャッシュが自動で消えます）。 */
-const VERSION = "2026-11-18.16";
-const CACHE = "kaku-generation-" + VERSION;
+const VERSION = "2026-11-18.test.1";
+const CACHE_PREFIX = "kaku-test-";
+const CACHE = CACHE_PREFIX + VERSION;
 
 /* 最初に必ず保存するもの（これが揃えばオフラインで起動できる） */
 const CORE = [
   "./",
   "./index.html",
   "./css/app.css",
+  "./css/symbols.css",
   "./js/main.js",
   "./js/app.js",
   "./js/calc.js",
@@ -18,6 +20,8 @@ const CORE = [
   "./js/reader2/score.js",
   "./js/reader2/text.js", "./js/reader2/lines.js",
   "./js/reader2/index.js",
+  "./js/reader2/symbols.js",
+  "./js/reader2/symbol_dictionary.json",
   "./js/place.js",
   "./js/elec.js",
   "./js/store.js",
@@ -136,7 +140,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k.startsWith("kaku-generation-") && k !== CACHE).map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE).map((k) => caches.delete(k)));
     await self.clients.claim();
   })());
 });

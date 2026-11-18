@@ -1,7 +1,27 @@
 # KAKU
 
 建築・リフォーム向けの見積もりワークスペース（PWA）。iPhone の Safari と Windows のブラウザで使えます。
-公開：https://katsu1007.github.io/kaku-estimate/
+ベース版の公開先（このテスト版とは別）：https://katsu1007.github.io/kaku-estimate/
+
+## kaku_test：設備・什器の記号候補
+
+「図面から拾う」でJWW・DXFを読み込むと、「設備・什器の記号候補」が表示されます。候補を選ぶと図面上で拡大できます。候補は案件に保存しますが、既存の器具判定・部屋・見積数量は上書きしません。旧版で取り込んだ図面は元のCADファイルを読み直すと照合できます。
+
+テスト版を手元のブラウザで開くには、リポジトリのルートで `python3 -m http.server 8000 --bind 127.0.0.1` を実行し、`http://127.0.0.1:8000/` を開きます。図面読み込みには同じオリジンのiframe、案件の保存にはIndexedDBが必要です。iPhoneアプリ用のIPAはこのテスト版では生成・公開しません。
+
+- **実測形状**：[Innerscene Drawing Library](https://www.innerscene.com/tools/library/drawings/wall-hung-wc-plan-plumbing-and-hvac-cad-symbol-850c442c) の [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) DXFから、壁掛け便器・タンク付き便器・小便器・洗面器・直線デスク・L字デスク・来客用チェアの7点を変換。個別の配布元・ライセンス・SHA-256は `js/reader2/symbol_dictionary.json` に記録しています。
+- **汎用ルール**：便器、小便器、洗面器、デスク、ロッカー列の5種。ロッカーは外枠、仕切り線、セル寸法・間隔で判定します。メーカー公式CADの原本や形状データは取り込んでいません。
+- **制限**：形状一致のスコアは検証済みの正答率ではありません。線の欠けや重なり、寸法の違いなどで未検出や誤検出が起こります。PDF・写真は照合対象外です。
+
+### 辞書の再生成
+
+```sh
+python -m pip install ezdxf==1.4.3
+python tools/build_symbol_dictionary.py /tmp/kaku-cc0 --download
+node --test tests/*.mjs
+```
+
+生成器は許諾確認済みのファイルだけを `tools/symbol_sources.json` から取り込み、ファイルのハッシュを照合します。DXF原本はリポジトリに含めません。形状は実寸(mm)の外接矩形・基本図形の数／割合・正規化した線分として保存します。読み込み試験用のJWW/DXFは `tests/e2e/make_symbol_jww.mjs` と `tests/e2e/make_symbol_dxf.py` で生成できます。
 
 ## 2026-11-12 作り直し（2.0）
 

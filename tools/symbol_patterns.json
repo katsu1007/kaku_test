@@ -1,0 +1,7 @@
+[
+  {"id":"generic_wc","category":"toilet","label":"洋式大便器","width_mm":[320,650],"depth_mm":[525,880],"aspect_ratio":[0.43,0.97],"primitive_features":{"curved_paths":[2,8],"bowl":"elongated","rear_edge":"optional"},"rule":"wc"},
+  {"id":"generic_urinal","category":"urinal","label":"小便器","width_mm":[260,510],"depth_mm":[230,540],"aspect_ratio":[0.64,1.5],"primitive_features":{"curved_paths":[1,5],"bowl":"inner_rounded","drain":"optional"},"rule":"urinal"},
+  {"id":"generic_basin","category":"washbasin","label":"洗面器","width_mm":[395,1050],"depth_mm":[305,670],"aspect_ratio":[1.12,2.7],"primitive_features":{"curved_paths":[1,6],"bowl":"inner_wide","drain":"optional"},"rule":"basin"},
+  {"id":"generic_locker","category":"locker","label":"ロッカー列","width_mm":[700,3050],"depth_mm":[325,670],"aspect_ratio":[1.25,8.0],"primitive_features":{"outer_edge_coverage_min":0.85,"partitions_min":2,"cell_width_mm":[215,650],"cell_spacing_ratio_min":0.76,"curve_length_ratio_max":0.16},"rule":"locker"},
+  {"id":"generic_desk","category":"desk","label":"オフィスデスク","width_mm":[880,2420],"depth_mm":[530,1070],"aspect_ratio":[1.18,4.3],"primitive_features":{"outer_edge_coverage_min":0.85,"partitions_max":1,"inset_straight_segments_min":3,"curve_length_ratio_max":0.16},"rule":"desk"}
+]
