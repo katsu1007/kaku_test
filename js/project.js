@@ -300,8 +300,9 @@ function symbolPanel(d,list) {
     r.limited ? ' 図面が複雑なため、一部を照合できませんでした。' : '';
   const detail = x => x.reason === 'ambiguous' ? `候補が近い：${(x.hints || []).join('／')}` :
     x.reason === 'weak' ? `形が近い：${(x.hints || []).join('／')}` : x.reason === 'reader' ? '器具の読み取りで判定保留' :
-    x.reason === 'detected' ? 'KAKUの器具読み取り' : x.entry_type === 'observed' ? `辞書の形状一致 ${Number(x.score)}/100` : '汎用ルール';
-  return `<details class="more dwg-symbols"${list.length ? ' open' : ''}><summary>設備・什器の記号候補 ${list.length}件</summary>
+    x.reason === 'detected' ? 'KAKUの器具読み取り' : x.reason === 'block' ? '形状・ブロック名が一致' :
+    x.reason === 'layer' ? '形状とレイヤー名が類似' : x.entry_type === 'observed' ? `辞書の形状一致 ${Number(x.score)}/100` : '汎用ルール';
+  return `<details class="more dwg-symbols"${list.length ? ' open' : ''}><summary>設備・什器・建具の記号候補 ${list.length}件</summary>
     <p class="small muted">${note}${coverageNote}</p>
     ${list.length ? `<div class="dwg-symbol-list">${list.map((x,i) => { const k=symbolStatus(x); return `<button type="button" data-symbol="${i}" aria-pressed="false" class="btn dwg-symbol-btn sym-${k}">
       <span class="dwg-symbol-badge">${SYMBOL_LABELS[k]}</span><span class="dwg-symbol-name">${esc(x.label)}</span><span class="small muted">${esc(detail(x))}</span></button>`; }).join('')}</div>` : ''}

@@ -13,36 +13,42 @@ from build_symbol_dictionary import symbol_entities
 
 input_dir, output_dir = map(Path, sys.argv[1:])
 sources = json.loads((root / "tools/symbol_sources.json").read_text())
+dictionary = json.loads((root / "js/reader2/symbol_dictionary.json").read_text())
+by_id = {e["id"]: e for e in dictionary["symbols"]}
 doc = ezdxf.new("R2010", units=4)
 for layer in ("WALL", "SYMBOLS"):
     doc.layers.new(layer)
 model = doc.modelspace()
-model.add_lwpolyline([(0, 0), (19000, 0), (19000, 17000), (0, 17000)], close=True, dxfattribs={"layer": "WALL"})
-model.add_text("OFFICE", dxfattribs={"insert": (6000, 16000), "height": 120})
+columns, pitch = 10, 5200
+top = pitch * (1 + math.ceil(len(sources) / columns))
+model.add_lwpolyline([(0, 0), (columns*pitch, 0), (columns*pitch, top), (0, top)],
+                     close=True, dxfattribs={"layer": "WALL"})
+model.add_text("OFFICE", dxfattribs={"insert": (6000, 1600), "height": 120})
 
 for i, e in enumerate(sources):
     src = ezdxf.readfile(input_dir / f"{e['slug']}.dxf")
     entities = list(symbol_entities(src, e, units.conversion_factor(src.units, units.MM)))
     base = bbox.extents(entities).center
-    block = doc.blocks.new(f"ANON_{i}", base_point=base)  # 名前が照合に使われないことを確認
+    key = by_id[e["id"]].get("source_block", f"ANON_{i}")
+    block = doc.blocks.new(key, base_point=base)
     for obj in entities:
         obj.dxf.layer = "0"
         block.add_foreign_entity(obj)
     factor = .92 if i % 3 == 0 else 1.06
-    ref = model.add_blockref(block.name, (2000 + 3600*(i % 5), 2000 + 3500*(i // 5)),
+    ref = model.add_blockref(block.name, (2600 + pitch*(i % columns), 7800 + pitch*(i // columns)),
                              dxfattribs={"layer": "SYMBOLS", "rotation": 22 if i % 2 else 90,
                                          "xscale": -factor if i == 5 else factor, "yscale": factor, "zscale": factor})
     if e["id"] in {"urinal_wall", "desk_straight", "chair_task", "desk_meeting_set", "chair_sofa_sectional", "chair_ottoman"}:
         ref.explode()
-model.add_lwpolyline([(3000, 15000), (4200, 15000), (4200, 15450), (3000, 15450)],
+model.add_lwpolyline([(3000, 3500), (4200, 3500), (4200, 3950), (3000, 3950)],
                      close=True, dxfattribs={"layer": "SYMBOLS"})
 for x in (3400, 3800):
-    model.add_line((x, 15000), (x, 15450), dxfattribs={"layer": "SYMBOLS"})
+    model.add_line((x, 3500), (x, 3950), dxfattribs={"layer": "SYMBOLS"})
 def stool(cx, angles, inner=120):
-    model.add_circle((cx, 15000), 210, dxfattribs={"layer": "SYMBOLS"})
+    model.add_circle((cx, 3500), 210, dxfattribs={"layer": "SYMBOLS"})
     for a in angles:
         x, y = math.cos(a), math.sin(a)
-        model.add_line((cx + inner*x, 15000 + inner*y), (cx + 210*x, 15000 + 210*y),
+        model.add_line((cx + inner*x, 3500 + inner*y), (cx + 210*x, 3500 + 210*y),
                        dxfattribs={"layer": "SYMBOLS"})
 
 # 4本の既存例、1本・2本の追加例、円だけ・中心に届く線の対照。
@@ -51,7 +57,7 @@ stool(8500, [-.31])
 stool(12000, [.31, .31 + math.pi / 2])
 stool(16000, [])
 stool(17500, [.31], inner=0)
-model.add_lwpolyline([(14000, 15000), (14480, 15000), (14480, 15500), (14000, 15500)],
+model.add_lwpolyline([(14000, 3500), (14480, 3500), (14480, 4000), (14000, 4000)],
                      close=True, dxfattribs={"layer": "SYMBOLS"})
 doc.saveas(output_dir / "symbol-test-office.dxf")
 

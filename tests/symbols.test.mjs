@@ -4,6 +4,7 @@ import test from 'node:test';
 import { cadSymbolParts, recognizeSymbols, symbolStatus, drawingSymbolMatches } from '../js/reader2/symbols.js';
 
 const dictionary = JSON.parse(readFileSync(new URL('../js/reader2/symbol_dictionary.json', import.meta.url), 'utf8'));
+const manifest = JSON.parse(readFileSync(new URL('../tools/symbol_sources.json', import.meta.url), 'utf8'));
 const observed = dictionary.symbols.filter(x => x.entry_type === 'observed');
 const newFurniture = ['desk_bench','desk_bench_set','desk_meeting_set','chair_task','chair_arm','chair_recliner'];
 const newSeats = ['chair_sofa_two','chair_sofa_three','chair_sofa_sectional','chair_high','chair_ottoman'];
@@ -18,18 +19,21 @@ const parts = (lines, layer='', group=null) => lines.map(s => ({kind:'line',laye
 const recognize = o => recognizeSymbols(o,dictionary).matches;
 
 test('辞書に出典と実形状があり、汎用パターンとは区別する', () => {
-  assert.equal(observed.length,18);
+  assert.deepEqual(observed.map(x=>x.id),manifest.map(x=>x.id));
+  for (const category of ['bath','sink','bed','table','storage','appliance','hvac','plumbing','opening','electrical']) {
+    assert.ok(observed.some(e=>e.category===category),category);
+  }
   for (const e of observed) {
     assert.equal(e.provenance.license,'CC0-1.0');
     assert.match(e.provenance.sha256,/^[a-f0-9]{64}$/);
-    assert.ok(e.segments.length>4);
+    assert.ok(e.segments.length>=3);
     assert.ok(e.features.width_mm>0);
   }
   assert.equal(dictionary.symbols.filter(x => x.entry_type==='generic_pattern' && !x.segments && x.provenance.kind==='original_heuristic').length,6);
 });
 
 test('家具6形状は、旧辞書で種類を絞れない角度・寸法違いの展開図形でも個別に検出する', () => {
-  const older = {...dictionary,symbols:dictionary.symbols.filter(e=>!newFurniture.includes(e.id))};
+  const older = {...dictionary,symbols:[...observed.slice(0,7),...dictionary.symbols.filter(e=>e.entry_type==='generic_pattern')]};
   for (const [i,id] of newFurniture.entries()) {
     const segs=symbol(id,5,7,.38,i%2===0,i%2===0 ? .91 : 1.08);
     const prior = recognizeSymbols({segs},older).matches;
@@ -85,14 +89,34 @@ test('家具の寸法に近くても、四角い外枠・円・ドアの開き�
   assert.deepEqual(recognize({segs:empty}),[]);
 });
 
-test('展開された全CC0記号を、平行移動・90度回転・鏡像で拾う（ブロック名なし）', () => {
+test('全CC0記号を、平行移動・90度回転・鏡像で拾う。文脈が必要な形状にはDXFのブロック情報を付ける', () => {
   for (const [i,e] of observed.entries()) {
-    const result=recognize({parts:parts(symbol(e.id,2+i,4,Math.PI/2,true))});
+    const segs=symbol(e.id,2+i,4,Math.PI/2,true);
+    const assembled=e.source_block ? cadSymbolParts(segs.map(([x,y,u,v])=>({
+      k:'line',a:[x,y],b:[u,v],o:{id:1,name:e.source_block},
+    })),1) : parts(segs,'',e.id==='wc_accessible' ? 1 : null);
+    const result=recognize({parts:assembled});
     assert.equal(result.length,1,e.id);
     assert.equal(result[0].id,e.id);
     assert.equal(result[0].entry_type,'observed');
     assert.equal(result[0].status,'match');
     assert.ok(result[0].score>=95);
+  }
+});
+
+test('配管・建具・電気は図形だけで断定せず、対応レイヤーなら類似として拾う', () => {
+  for (const [id,layer] of [['pipe_gate_valve','M-PIPE'],['door_hinged_800','A-DOOR'],['light_round_down','照明']]) {
+    const segs=symbol(id,2,3);
+    assert.deepEqual(recognize({segs}).filter(r=>r.id===id),[],id);
+    assert.deepEqual(recognize({parts:parts(segs,layer,7)}).map(r=>[r.id,r.status]),[[id,'similar']],id);
+    assert.deepEqual(recognize({parts:parts(segs,`${layer}-寸法`,7)}),[],id);
+  }
+});
+
+test('円形サイドテーブルの登録後も、無名の円だけを家具として数えない', () => {
+  for (const id of ['table_coffee_round','table_side','hvac_thermostat']) {
+    const segs=symbol(id,2,3);
+    assert.deepEqual(recognize({segs}),[],id);
   }
 });
 

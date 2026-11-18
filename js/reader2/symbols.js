@@ -1,7 +1,14 @@
 /* 実測シンボルと汎用ルールを照合。入力の座標・単位は図面と同じ m / Y上向き。 */
-const VERSION = 'kaku_symbol_dictionary_v3';
+const VERSION = 'kaku_symbol_dictionary_v4';
 const STRIDE = 0.35, PAD = 0.012, MAX_PARTS = 50000, MAX_CANDIDATES = 1600;
-const DROP = /寸法|通り?[芯心]|基準線|文字|注記|図枠|表題|凡例|ハッチ|配線|電気|照明|(?:^|[-_ ])(?:DIM\w*|GRID|TEXT|ANNO\w*|HATCH|TITLE|LEGEND|FRAME|WIRE|LIGHT|WALLS?)(?:$|[-_ ])/i;
+const MIN_SPAN = 0.05, MAX_SPAN = 4.5;
+const DROP = /寸法|通り?[芯心]|基準線|文字|注記|図枠|表題|凡例|ハッチ|配線|(?:^|[-_ ])(?:DIM\w*|GRID|TEXT|ANNO\w*|HATCH|TITLE|LEGEND|FRAME|WIRE|WALLS?)(?:$|[-_ ])/i;
+const contextLayer = {
+  plumbing: /配管|給排水|衛生|(?:^|[-_ ])(?:PLUMB\w*|PIP(?:E|ING)\w*)(?:$|[-_ ])/i,
+  opening: /建具|開口|窓|扉|(?:^|[-_ ])(?:DOOR\w*|WINDOW\w*|GLAZ\w*)(?:$|[-_ ])/i,
+  electrical: /照明|電気|火報|火災報知|(?:^|[-_ ])(?:ELEC\w*|LIGHT\w*|FIRE\w*|LUMI\w*)(?:$|[-_ ])/i,
+};
+const strictCategories = new Set(['storage','table','appliance','hvac','bath','sink','bed']);
 let pending;
 
 export function loadSymbolDictionary() {
@@ -48,9 +55,12 @@ export function cadSymbolParts(ents, metresPerUnit) {
     if (e.closed && (pts[0][0] !== pts.at(-1)[0] || pts[0][1] !== pts.at(-1)[1])) pts = [...pts,pts[0]];
     const segs = [];
     for (let i=1; i<pts.length; i++) segs.push([...pts[i-1],...pts[i]].map(v => v*metresPerUnit));
-    const groups=[];
-    for (let o=e.o; o && groups.length<8; o=o.o) groups.push(o.id);
-    parts.push({kind, curved: !!e.bul || ['ellipse','circle','arc'].includes(kind), groups, layer: e.ly || '', segs});
+    const groups=[], blocks=[];
+    for (let o=e.o; o && groups.length<8; o=o.o) {
+      groups.push(o.id);
+      if (o.name) blocks.push({id:o.id,name:o.name.trim().toUpperCase()});
+    }
+    parts.push({kind, curved: !!e.bul || ['ellipse','circle','arc'].includes(kind), groups, blocks, layer: e.ly || '', segs});
   }
   return parts;
 }
@@ -91,7 +101,7 @@ function clusters(P) {
   for (const group of spatial.values()) {
     if (group.length>360) continue;
     const box=bounds(group.flatMap(p=>p.segs)), [x,y,u,v]=box;
-    if (Math.min(width(box),height(box))<0.14 || Math.max(width(box),height(box))>4.5) continue;
+    if (Math.min(width(box),height(box))<MIN_SPAN || Math.max(width(box),height(box))>MAX_SPAN) continue;
     const ids=new Set(), layer=group[0].layer;
     for (let a=Math.floor((x-PAD)/STRIDE); a<=Math.floor((u+PAD)/STRIDE); a++) {
       for (let b=Math.floor((y-PAD)/STRIDE); b<=Math.floor((v+PAD)/STRIDE); b++) {
@@ -113,7 +123,7 @@ function oriented(segs,a) {
     return [x*c+y*s,-x*s+y*c,u*c+v*s,-u*s+v*c];
   });
   const b = bounds(rr), w = width(b), h = height(b), sc = Math.max(w,h);
-  if (Math.min(w,h) < 0.14 || sc > 3.3) return null;
+  if (Math.min(w,h) < MIN_SPAN || sc > MAX_SPAN) return null;
   const x0 = (b[0]+b[2])/2, y0 = (b[1]+b[3])/2;
   return {w:w*1000,h:h*1000,ratio:w/h,rr,b,c,s,segs:rr.map(([x,y,u,v]) => [(x-x0)/sc,(y-y0)/sc,(u-x0)/sc,(v-y0)/sc])};
 }
@@ -141,7 +151,29 @@ function dist2(x,y,[a,b,c,d]) {
   return (x-a-t*dx)**2+(y-b-t*dy)**2;
 }
 
+// The score is zero beyond .008 + .045 of an edge. Index that neighborhood
+// so a larger dictionary does not need to compare every sample to every edge.
+const edgeIndexes=new WeakMap(), scoreCell=.125, scoreReach=.053;
+const scoreKey=(x,y)=>x*32+y;
+function edgeIndex(segs) {
+  if (edgeIndexes.has(segs)) return edgeIndexes.get(segs);
+  const grid=new Map(), cell=v=>Math.floor(v/scoreCell);
+  for (const edge of segs) {
+    const [x,y,u,v]=edge;
+    for (let i=cell(Math.min(x,u)-scoreReach);i<=cell(Math.max(x,u)+scoreReach);i++) {
+      for (let j=cell(Math.min(y,v)-scoreReach);j<=cell(Math.max(y,v)+scoreReach);j++) {
+        const k=scoreKey(i,j);
+        if (!grid.has(k)) grid.set(k,[]);
+        grid.get(k).push(edge);
+      }
+    }
+  }
+  edgeIndexes.set(segs,grid);
+  return grid;
+}
+
 function coverage(a,b) {
+  const grid=edgeIndex(b);
   let score=0, w=0;
   for (const [x,y,u,v] of a) {
     const len=Math.hypot(u-x,v-y);
@@ -149,7 +181,9 @@ function coverage(a,b) {
     for (let i=0;i<n;i++) {
       const t=(i+0.5)/n, p=x+t*(u-x), q=y+t*(v-y);
       let m=Infinity;
-      for (const edge of b) { m=Math.min(m,dist2(p,q,edge)); if (m<0.000009) break; }
+      for (const edge of grid.get(scoreKey(Math.floor(p/scoreCell),Math.floor(q/scoreCell))) || []) {
+        m=Math.min(m,dist2(p,q,edge)); if (m<0.000009) break;
+      }
       // Curves may be flattened with different tolerances by the two readers.
       score+=len/n*(1-clamp((Math.sqrt(m)-0.008)/0.045,0,1)); w+=len/n;
     }
@@ -279,9 +313,23 @@ function rectangleWithoutDetail({rr,b:[x0,y0,x1,y1]}) {
 
 function match(parts,entries) {
   const segs=parts.flatMap(x => x.segs);
-  if (segs.length < 4 || segs.length > 360) return null;
+  if (segs.length < 3 || segs.length > 360) return null;
   const bb=bounds(segs);
-  if (Math.max(width(bb),height(bb))>4.5 || Math.min(width(bb),height(bb))<0.14) return null;
+  if (Math.max(width(bb),height(bb))>MAX_SPAN || Math.min(width(bb),height(bb))<MIN_SPAN) return null;
+  const names=new Set((parts[0].blocks || []).filter(b=>parts.every(p=>p.groups?.includes(b.id))).map(b=>b.name));
+  const layers=[...new Set(parts.map(p=>p.layer))];
+  const contexts=new Set(Object.keys(contextLayer).filter(k=>layers.every(layer=>contextLayer[k].test(layer))));
+  const eligible=entries.map(e=>{
+    const named=e.source_block && names.has(e.source_block);
+    const contextual=contexts.has(e.match_context);
+    if (!named && e.match_context && !contextual) return null;
+    if (contexts.has('electrical') && !named && e.match_context!=='electrical') return null;
+    return {e,named,contextual};
+  }).filter(Boolean);
+  // A preserved, reviewed INSERT name disambiguates otherwise identical linework.
+  const exact=eligible.filter(item=>item.named);
+  const usable=exact.length ? exact : eligible;
+  if (!usable.length) return null;
   const found=new Map();
   const add=(e,score,shape=0) => { if (score>(found.get(e.category)?.score||0)) found.set(e.category,{e,score,shape}); };
   const views=angles(segs).map(a=>[a,oriented(segs,a)]).filter(([,v])=>v);
@@ -290,8 +338,8 @@ function match(parts,entries) {
     const v90=oriented(segs,a+Math.PI/2)||v;
     const transforms=[];
     let normalizedLength;
-    for (const e of entries) {
-      if (bareBox && (e.category==='desk' || e.category==='chair')) continue;
+    for (const {e,named,contextual} of usable) {
+      if ((bareBox || segs.length<4) && !named && !contextual) continue;
       if (e.entry_type==='generic_pattern') {
         add(e,Math.max(ruleScore(e,v,parts),ruleScore(e,v90,parts)));
         continue;
@@ -310,7 +358,12 @@ function match(parts,entries) {
           const reverse=coverage(C,e.segments);
           const shape=Math.min(hit,reverse);
           // A rectangle without interior detail can look like a desk in one direction.
-          if (shape>=0.70 && Math.abs(hit-reverse)<=0.26) add(e,0.86*shape+0.14*dims,shape);
+          const strict=e.match_context || strictCategories.has(e.category);
+          if (shape>=(strict ? 0.88 : 0.70) && Math.abs(hit-reverse)<=0.26) {
+            const score=0.86*shape+0.14*dims;
+            // Keep raw scores to compare nearby sizes; only the final status is capped for a layer-only hit.
+            add(e,score,shape);
+          }
         }
       }
     }
@@ -319,8 +372,9 @@ function match(parts,entries) {
   if (!one) return null;
   const ambiguous = !!two && one.score-two.score<0.035;
   const isObserved = one.e.entry_type==='observed';
+  const layerOnly=one.e.match_context && !names.has(one.e.source_block);
   const status = ambiguous || (isObserved && one.shape<0.81) ? 'unknown' :
-    isObserved && one.score>=0.91 ? 'match' : 'similar';
+    isObserved && one.score>=0.91 && !layerOnly ? 'match' : 'similar';
   if (status==='unknown') {
     // Do not highlight every unlabeled shape: require template evidence or two plausible categories.
     if (one.score<0.72 || (one.shape<0.73 && !ambiguous)) return null;
@@ -329,7 +383,8 @@ function match(parts,entries) {
       score:Math.min(99,Math.floor(one.score*100+1e-8)),b:bb.map(round)};
   }
   return {id:one.e.id,category:one.e.category,label:one.e.label,entry_type:one.e.entry_type,
-    status,score:Math.min(99,Math.floor(one.score*100+1e-8)), b:bb.map(round)};
+    status,...(one.e.match_context ? {reason:layerOnly ? 'layer' : 'block'} : {}),
+    score:Math.min(layerOnly ? 89 : 99,Math.floor(one.score*100+1e-8)),b:bb.map(round)};
 }
 
 function overlap(a,b) {
@@ -384,7 +439,7 @@ export function recognizeSymbols({parts, segs=[], regions=[]},dictionary) {
     if (DROP.test(p.layer||'') || !p.segs?.length || p.segs.length>360) continue;
     const s=p.segs.filter(validSegment); if (!s.length) continue;
     const b=bounds(s);
-    if (Math.max(width(b),height(b))>3.3 || excluded.some(q => inside(b,q))) continue;
+    if (Math.max(width(b),height(b))>MAX_SPAN || excluded.some(q => inside(b,q))) continue;
     P.push({...p,layer:p.layer||'',segs:s,b,index:P.length});
   }
   const found=[], ids=new Set();
@@ -392,7 +447,7 @@ export function recognizeSymbols({parts, segs=[], regions=[]},dictionary) {
   for (const group of clusters(P)) {
     if (group.length>360) continue;
     const b=bounds(group.flatMap(p => p.segs));
-    if (Math.min(width(b),height(b))<0.14 || Math.max(width(b),height(b))>4.5) continue;
+    if (Math.min(width(b),height(b))<MIN_SPAN || Math.max(width(b),height(b))>MAX_SPAN) continue;
     const key=group.map(x=>x.index).sort((a,b)=>a-b).join(',');
     if (ids.has(key)) continue;
     ids.add(key);

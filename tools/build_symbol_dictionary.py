@@ -24,7 +24,9 @@ KINDS = {
     "LINE": "line", "ARC": "arc", "CIRCLE": "circle", "ELLIPSE": "ellipse",
     "LWPOLYLINE": "polyline", "POLYLINE": "polyline", "SPLINE": "spline",
 }
-CATEGORIES = {"toilet", "urinal", "washbasin", "desk", "chair", "locker"}
+CONTEXT_CATEGORIES = {"plumbing", "opening", "electrical"}
+CATEGORIES = {"toilet", "urinal", "washbasin", "desk", "chair", "locker",
+              "bath", "sink", "table", "bed", "storage", "appliance", "hvac"} | CONTEXT_CATEGORIES
 VENDOR = "https://www.innerscene.com"
 LIMIT = 10_000_000
 
@@ -125,11 +127,21 @@ def sample(entry, input_dir, download):
     cx, cy, scale = (min(xs)+max(xs))/2, (min(ys)+max(ys))/2, max(w,h)
     geometry = [[round(v, 6) for v in ((x-cx)/scale, (y-cy)/scale, (u-cx)/scale, (v-cy)/scale)]
                 for x,y,u,v in strokes]
+    context = entry.get("match_context", entry["category"] if entry["category"] in CONTEXT_CATEGORIES else None)
+    source_block = None
+    if context is not None:
+        if context not in CONTEXT_CATEGORIES | {"block"}:
+            raise ValueError(f"unsupported match context: {context}")
+        inserts = list(doc.modelspace().query("INSERT"))
+        if len(inserts) != 1:
+            raise ValueError(f"context matching requires one identifiable DXF INSERT: {name}")
+        source_block = inserts[0].dxf.name.strip().upper()
     stroke_ratio = entry.get("min_stroke_ratio")
     if stroke_ratio is not None and not 0 < stroke_ratio <= 1:
         raise ValueError(f"invalid min_stroke_ratio: {entry['id']}")
     return {
         "id": entry["id"], "category": entry["category"], "label": entry["label"], "entry_type": "observed",
+        **({"match_context": context, "source_block": source_block} if context else {}),
         "provenance": {"license": license_id, "license_url": LICENSE[license_id], "source_url": source,
                        "source_file": name, "sha256": digest, **({"notice": notice} if notice else {}),
                        **({"selection_box_mm": entry["selection_box_mm"]} if "selection_box_mm" in entry else {})},
@@ -163,7 +175,10 @@ def main():
         observed = [sample(e, args.input_dir, args.download) for e in sources]
         shapes = set()
         for e in observed:
-            key = (e["category"], e["features"]["width_mm"], e["features"]["depth_mm"],
+            # Text-only distinctions in otherwise identical electrical marks
+            # are safe only when the original, unique INSERT name is required.
+            key = (e["source_block"] if e.get("match_context") == "block" else None,
+                   e["features"]["width_mm"], e["features"]["depth_mm"],
                    tuple(sorted(tuple(sorted((tuple(s[:2]), tuple(s[2:])))) for s in e["segments"])))
             if key in shapes:
                 raise ValueError(f"duplicate geometry: {e['id']}")
@@ -171,7 +186,7 @@ def main():
         generic = [{**e, "entry_type": "generic_pattern", "provenance": {"kind": "original_heuristic"}} for e in patterns]
     except (OSError, ValueError, KeyError, TypeError, ezdxf.DXFError) as exc:
         p.exit(1, f"辞書は出力されませんでした: {exc}\n")
-    header = {"schema_version": "kaku_symbol_dictionary_v3", "coordinate_system": "bbox_center_longest_side_1_xy_up",
+    header = {"schema_version": "kaku_symbol_dictionary_v4", "coordinate_system": "bbox_center_longest_side_1_xy_up",
               "unit": "mm"}
     prefix = json.dumps(header, ensure_ascii=False, indent=2)[:-2]
     rows = [json.dumps(e, ensure_ascii=False, separators=(",", ":"), allow_nan=False) for e in observed + generic]
