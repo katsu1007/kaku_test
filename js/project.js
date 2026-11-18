@@ -277,17 +277,17 @@ function drawingCard(p) {
 }
 
 const SYMBOL_LABELS = { match: '検出', similar: '類似', unknown: '不明' };
+const SYMBOL_JUMP_HINT = '分類を押すと記号へ移動します。';
 const symbolCAD = d => !!d.symbols || (!d.sketch && (Array.isArray(d.fixtures) || /\.(jww|jwc|dxf)$/i.test(d.fileName || '')));
-function symbolToolbar(d,list) {
+function symbolToolbar(d,groups) {
   if (!symbolCAD(d)) return /\.(pdf|png|jpe?g|webp|heic)$/i.test(d.fileName || '') ?
     '<p class="small muted dwg-symbol-state">記号の色分けはJWW・DXFが対象です。PDF・画像は対象外です。</p>' : '';
-  const counts = { match: 0, similar: 0, unknown: 0 };
-  list.forEach(x => counts[symbolStatus(x)]++);
+  const any = Object.values(groups).some(g => g.length);
   return `<div class="dwg-symbol-toolbar" aria-label="記号の色分け">
-    ${list.length ? `<button type="button" class="btn sm dwg-symbol-toggle" data-symbol-toggle aria-pressed="true" aria-controls="dwgView">${icon('layers')}<span data-symbol-toggle-text>色を消す</span></button>` : ''}
-    <div class="dwg-symbol-legend small" aria-label="記号の判定別件数">${Object.entries(SYMBOL_LABELS).map(([k,label]) =>
-      `<span class="sym-${k}"><span class="dwg-symbol-key" aria-hidden="true"></span>${label} ${counts[k]}</span>`).join('')}</div>
-    ${list.length ? '' : `<span class="small muted">${!d.symbols || d.symbols.unavailable ? '記号の辞書照合結果がありません。' : '枠を付けられる記号候補はありません。'}</span>`}
+    ${any ? `<button type="button" class="btn sm dwg-symbol-toggle" data-symbol-toggle aria-pressed="true" aria-controls="dwgView">${icon('layers')}<span data-symbol-toggle-text>色を消す</span></button>` : ''}
+    <div class="dwg-symbol-legend" role="group" aria-label="記号へ移動">${Object.entries(SYMBOL_LABELS).map(([k,label]) =>
+      `<button type="button" class="btn sm dwg-symbol-jump sym-${k}" data-symbol-jump="${k}" aria-controls="dwgView"${groups[k].length ? '' : ' disabled'}><span class="dwg-symbol-key" aria-hidden="true"></span><span>${label} <span data-symbol-position>${groups[k].length}</span></span>${groups[k].length ? icon('next') : ''}</button>`).join('')}</div>
+    ${any ? `<p class="small muted dwg-symbol-nav-note" data-symbol-nav-note role="status">${SYMBOL_JUMP_HINT}</p>` : `<span class="small muted">${!d.symbols || d.symbols.unavailable ? '記号の辞書照合結果がありません。' : '枠を付けられる記号候補はありません。'}</span>`}
   </div>`;
 }
 
@@ -613,14 +613,17 @@ function stepRooms(ctx) {
   const sel = new Set();
   let view = null;
   let symbolsOn = true, symbolSel = -1;
-  let symbolList = [];
+  let symbolList = [], symbolGroups = {}, symbolCursor = {};
   const refreshSymbols = () => {
     const top = $('#dwgSymbolTop', body), list = $('#dwgSymbolList', body), d = p.drawing;
     symbolList = d && symbolCAD(d) ? drawingSymbolMatches(d, FIX_NAMES) : [];
+    symbolGroups = { match: [], similar: [], unknown: [] };
+    symbolList.forEach((x,i) => symbolGroups[symbolStatus(x)].push(i));
+    symbolCursor = {};
     symbolSel = -1;
     if (!top || !list || !d) return;
     const wasOpen = $('details', list)?.open;
-    top.innerHTML = symbolToolbar(d, symbolList);
+    top.innerHTML = symbolToolbar(d, symbolGroups);
     list.innerHTML = symbolPanel(d, symbolList);
     const details = $('details', list);
     if (details && wasOpen != null) details.open = wasOpen;
@@ -795,6 +798,14 @@ function stepRooms(ctx) {
         <div class="chips">${`<span class="chip">はつり <b>${c.a}</b>㎡</span>` + (c.cut ? `<span class="chip">カッター <b>${c.cut}</b>m</span>` : '') + `<span class="chip">ガラ <b>${c.gara}</b>m³</span>` + (c.dig ? `<span class="chip">掘削 <b>${c.dig}</b>m³</span><span class="chip">残土 <b>${c.zando}</b>m³</span>` : '') + (c.back ? `<span class="chip">埋め戻し <b>${c.back}</b>m³</span>` : '')}</div></div>`; }).join('')}
       <div class="small muted">ここで入れた分は、③工事の明細に自動で入ります（変えると明細も変わります）。</div></div>`;
   };
+  const zoomSymbol = (i, revealView = false) => {
+    const x = symbolList[i];
+    if (!view || !x) return;
+    const b = x.b, pad = Math.max(b[2]-b[0], b[3]-b[1], 0.35) * 0.65;
+    symbolSel = i; symbolCursor[symbolStatus(x)] = i; sheetZoom = '';
+    view.zoomTo([b[0]-pad,b[1]-pad,b[2]+pad,b[3]+pad]); paintSel();
+    if (revealView) $('#dwgView', body)?.scrollIntoView({ block: 'nearest' });
+  };
   const paintSel = () => {
     if (!p.drawing || !p.drawing.plan) return;
     $$('#dwgMode button', body).forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
@@ -816,6 +827,16 @@ function stepRooms(ctx) {
       toggle.setAttribute('aria-pressed', String(symbolsOn));
       $('[data-symbol-toggle-text]', toggle).textContent = symbolsOn ? '色を消す' : '色をつける';
     }
+    const selectedSymbol = symbolList[symbolSel], activeGroup = selectedSymbol && symbolStatus(selectedSymbol);
+    const progressText = k => `${symbolGroups[k].indexOf(symbolSel) + 1} / ${symbolGroups[k].length}`;
+    $$('[data-symbol-jump]', body).forEach(b => {
+      const k = b.dataset.symbolJump, active = k === activeGroup;
+      if (active) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+      $('[data-symbol-position]', b).textContent = active ? progressText(k) : symbolGroups[k].length;
+    });
+    const navNote = $('[data-symbol-nav-note]', body);
+    const navText = selectedSymbol ? `${SYMBOL_LABELS[activeGroup]} ${progressText(activeGroup)}：${selectedSymbol.label}` : SYMBOL_JUMP_HINT;
+    if (navNote && navNote.textContent !== navText) navNote.textContent = navText;
     $$('[data-symbol]', body).forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.symbol) === symbolSel)));
     const demoBox = body.querySelector('#dwgDemo'); if (demoBox) demoBox.innerHTML = demoList();
     const fxBox = body.querySelector('#dwgFix'); if (fxBox) fxBox.innerHTML = fixSummary(p.drawing);
@@ -1348,16 +1369,14 @@ function stepRooms(ctx) {
   });
   body.addEventListener('click', async e => {
     if (e.target.closest('[data-symbol-toggle]')) { symbolsOn = !symbolsOn; paintSel(); return; }
-    const sb = e.target.closest('[data-symbol]');
-    if (sb) {
-      const i = Number(sb.dataset.symbol), b = symbolList[i]?.b;
-      if (!view || !b || !b.every(Number.isFinite)) return;
-      const pad = Math.max(b[2]-b[0], b[3]-b[1], 0.35) * 0.65;
-      symbolSel = i; sheetZoom = '';
-      view.zoomTo([b[0]-pad,b[1]-pad,b[2]+pad,b[3]+pad]); paintSel();
-      if (e.detail !== 0) body.querySelector('#dwgView')?.scrollIntoView({ block: 'nearest' });
+    const jump = e.target.closest('[data-symbol-jump]');
+    if (jump) {
+      const k = jump.dataset.symbolJump, group = symbolGroups[k];
+      if (group.length) zoomSymbol(group[(group.indexOf(symbolCursor[k]) + 1) % group.length]);
       return;
     }
+    const sb = e.target.closest('[data-symbol]');
+    if (sb) { zoomSymbol(Number(sb.dataset.symbol), e.detail !== 0); return; }
     const fsb = e.target.closest('[data-act="dwgFs"]');
     if (fsb) { dwgFs = !dwgFs; document.body.classList.toggle('dwg-fs-on', dwgFs); draw(); return; }
     const sz = e.target.closest('[data-sheetzoom]');

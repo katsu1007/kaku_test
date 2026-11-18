@@ -1,8 +1,11 @@
 .dwg-symbol-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0; }
 .dwg-symbol-state { margin: 8px 0; }
 .dwg-symbol-toggle { min-height: 44px; }
-.dwg-symbol-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
-.dwg-symbol-legend > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.dwg-symbol-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.dwg-symbol-jump { gap: 5px; min-height: 44px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dwg-symbol-jump svg { width: 12px; height: 12px; }
+.dwg-symbol-jump[aria-current="true"] { border-color: var(--symbol-tone); }
+.dwg-symbol-nav-note { flex: 1 0 100%; margin: 0; overflow-wrap: anywhere; }
 .dwg-symbol-key { display: inline-block; width: 15px; height: 11px; border: 2px var(--symbol-line, solid) var(--symbol-tone); border-radius: 3px; }
 .dwg-symbols { margin: 10px 0; }
 .dwg-symbols summary { font-weight: 700; }
