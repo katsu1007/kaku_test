@@ -222,13 +222,17 @@ function ruleScore(e,v,parts) {
   return (e.rule==='urinal' && ratio<=1.02) || (e.rule==='basin' && ratio>=1.19) ? 0.74 : 0;
 }
 
+const statusOrder = { match: 0, similar: 1, unknown: 2 };
+export const symbolStatus = x => ['match','similar','unknown'].includes(x?.status) ? x.status :
+  x?.entry_type==='observed' && x.score>=91 ? 'match' : 'similar';
+
 function match(parts,entries) {
   const segs=parts.flatMap(x => x.segs);
   if (segs.length < 4 || segs.length > 360) return null;
   const bb=bounds(segs);
   if (Math.max(width(bb),height(bb))>4.5 || Math.min(width(bb),height(bb))<0.14) return null;
   const found=new Map();
-  const add=(e,score) => { if (score>(found.get(e.category)?.score||0)) found.set(e.category,{e,score}); };
+  const add=(e,score,shape=0) => { if (score>(found.get(e.category)?.score||0)) found.set(e.category,{e,score,shape}); };
   for (const a of angles(segs)) {
     const v=oriented(segs,a); if (!v) continue;
     const v90=oriented(segs,a+Math.PI/2)||v;
@@ -245,18 +249,30 @@ function match(parts,entries) {
         for (const mirror of [false,true]) {
           const C=transform(v.segs,k,mirror);
           const hit=coverage(e.segments,C);
-          if (hit<0.81) continue;
+          if (hit<0.70) continue;
           const reverse=coverage(C,e.segments);
           const shape=Math.min(hit,reverse);
-          if (shape>=0.81) add(e,0.86*shape+0.14*dims);
+          // A rectangle without interior detail can look like a desk in one direction.
+          if (shape>=0.70 && Math.abs(hit-reverse)<=0.26) add(e,0.86*shape+0.14*dims,shape);
         }
       }
     }
   }
   const [one,two]=[...found.values()].sort((x,y) => y.score-x.score);
-  if (!one || one.score<0.73 || (two && one.score-two.score<0.035)) return null;
+  if (!one) return null;
+  const ambiguous = !!two && one.score-two.score<0.035;
+  const isObserved = one.e.entry_type==='observed';
+  const status = ambiguous || (isObserved && one.shape<0.81) ? 'unknown' :
+    isObserved && one.score>=0.91 ? 'match' : 'similar';
+  if (status==='unknown') {
+    // Do not highlight every unlabeled shape: require template evidence or two plausible categories.
+    if (one.score<0.72 || (one.shape<0.73 && !ambiguous)) return null;
+    return {id:'unknown',category:'unknown',label:'種類を特定できない記号',entry_type:'unresolved',status,
+      reason:ambiguous?'ambiguous':'weak',hints:[one,...(ambiguous?[two]:[])].map(x=>x.e.label),
+      score:Math.min(99,Math.floor(one.score*100+1e-8)),b:bb.map(round)};
+  }
   return {id:one.e.id,category:one.e.category,label:one.e.label,entry_type:one.e.entry_type,
-    score:Math.min(99,Math.floor(one.score*100+1e-8)), b:bb.map(round)};
+    status,score:Math.min(99,Math.floor(one.score*100+1e-8)), b:bb.map(round)};
 }
 
 function overlap(a,b) {
@@ -265,7 +281,7 @@ function overlap(a,b) {
   return i/(width(a)*height(a)+width(b)*height(b)-i||1);
 }
 
-export function recognizeSymbols({parts, segs=[], regions=[]},dictionary) {
+export function recognizeSymbols({parts, segs=[], regions=[], fixtures=[]},dictionary) {
   const input=parts?.length ? parts : segs.map(s => ({kind:'line',segs:[s]}));
   if (input.length>MAX_PARTS) return {limited:true,matches:[]};
   const entries=dictionary.symbols.filter(e => e.entry_type==='generic_pattern' ||
@@ -293,9 +309,19 @@ export function recognizeSymbols({parts, segs=[], regions=[]},dictionary) {
     if (x && !excluded.some(q => inside(x.b,q))) found.push(x);
   }
   const matches=[];
-  for (const x of found.sort((a,b) => b.score-a.score || a.b[1]-b.b[1] || a.b[0]-b.b[0])) {
+  for (const f of fixtures) {
+    const b=f.b;
+    if (f.t!=='unknown' || !Array.isArray(b) || b.length!==4 || !b.every(Number.isFinite) ||
+      Math.min(width(b),height(b))<0.14 || Math.max(width(b),height(b))>3.3 || excluded.some(q=>inside(b,q))) continue;
+    found.push({id:'unknown',category:'unknown',label:'種類を特定できない器具',entry_type:'unresolved',
+      status:'unknown',reason:'reader',score:0,b:b.map(round)});
+  }
+  for (const x of found.sort((a,b) => statusOrder[a.status]-statusOrder[b.status] ||
+    b.score-a.score || a.b[1]-b.b[1] || a.b[0]-b.b[0])) {
     if (matches.length>=300) { limited=true; break; }
-    if (!matches.some(y => overlap(x.b,y.b)>0.55)) matches.push(x);
+    const cx=(x.b[0]+x.b[2])/2, cy=(x.b[1]+x.b[3])/2;
+    if (!matches.some(y => overlap(x.b,y.b)>0.55 || (x.reason==='reader' &&
+      overlap(x.b,y.b)>0.25 && inside([cx,cy,cx,cy],y.b)))) matches.push(x);
   }
   return {limited,matches};
 }

@@ -89,7 +89,7 @@ export async function openElec(p, { onApply }) {
     const b = e.target.closest('[data-a]'); if (!b) return;
     const a = b.dataset.a;
     if (a === 'close') { close(); return; }
-    if (a === 'memClear') { try { localStorage.removeItem('kaku-elec-mem'); } catch (e2) { /* 消せなくても続ける */ } toast('覚えた内容を消しました'); return; }
+    if (a === 'memClear') { try { window.kakuStorage.removeItem('kaku-elec-mem'); } catch (e2) { /* 消せなくても続ける */ } toast('覚えた内容を消しました'); return; }
     if (a === 'apply') {
       const T = types(), R = G('KE.res.wiresM'), L = G('KE.layers');
       const counts = {}; T.forEach(t => { const id = st.map[t.key]; if (id && t.count) counts[id] = (counts[id] || 0) + t.count; });

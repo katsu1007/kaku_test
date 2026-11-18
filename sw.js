@@ -1,6 +1,6 @@
 /* KAKU Service Worker — オフライン対応とキャッシュ管理
  * アプリを更新したら VERSION の数字を上げてください（古いキャッシュが自動で消えます）。 */
-const VERSION = "2026-11-18.test.1";
+const VERSION = "2026-11-18.test.2";
 const CACHE_PREFIX = "kaku-test-";
 const CACHE = CACHE_PREFIX + VERSION;
 
@@ -11,6 +11,7 @@ const CORE = [
   "./css/app.css",
   "./css/symbols.css",
   "./js/main.js",
+  "./js/test-storage.js",
   "./js/app.js",
   "./js/calc.js",
   "./js/workcheck.js",

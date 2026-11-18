@@ -118,7 +118,7 @@ export async function readWithFixtures(file, opt = {}) {
       if (tmpId != null && !before.includes(tmpId)) {
         W.__kxTmp = tmpId;
         G(`data=data.filter(p=>p.id!==window.__kxTmp);if(!data.length)data=[blank()];current=null;save();
-          localStorage.removeItem('kaku-plan-'+window.__kxTmp);localStorage.removeItem('kaku-fix-'+window.__kxTmp)`);
+          window.kakuStorage.removeItem('kaku-plan-'+window.__kxTmp);window.kakuStorage.removeItem('kaku-fix-'+window.__kxTmp)`);
       }
     } catch (e) { console.warn('作業用の案件を消せませんでした', e); }
   }

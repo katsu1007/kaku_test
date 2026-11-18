@@ -1,0 +1,35 @@
+name: Deploy KAKU Test to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: kaku-test-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.repository == 'katsu1007/kaku_test'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Stage browser assets
+        run: |
+          mkdir _site
+          cp -r index.html manifest.json sw.js icon-*.png css js old suido vendor _site/
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/deploy-pages@v4
+        id: deploy

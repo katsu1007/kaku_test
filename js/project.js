@@ -6,7 +6,7 @@ import { makerLinks } from './makers.js';
 import { analyzeAll as analyzeFrame, VER as R2VER } from './reader2/index.js';
 import { groupRoles, ROLE } from './reader2/lines.js';
 import { modelFor, normalizeText } from './reader2/text.js';
-import { loadSymbolDictionary, recognizeSymbols } from './reader2/symbols.js';
+import { loadSymbolDictionary, recognizeSymbols, symbolStatus } from './reader2/symbols.js';
 import { SYS, MANY, sysOptions, rebuild, PIPE_LOSS } from './piping.js';
 import { importDrawing, groupGeom, roomHoles, planCH, orderFaces as orderFacesOf } from './drawing.js';
 import { readWithFixtures, oldFaceLights, roomOpenRuns, FIX_NAMES, FIX_ITEMS, FIX_WORDS } from './legacy.js';
@@ -266,7 +266,7 @@ function drawingCard(p) {
       <button class="btn sm ghost danger" data-act="dwgClear">${icon('trash')}図面を消す</button></div>
     <div id="dwgEdit" class="${dwgFs ? 'dwg-fs' : ''}"><div class="dwg-fs-head"><b class="small" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name || '図面')}</b><button class="btn sm" data-act="dwgFs">${icon('shrink')}全画面をやめる</button></div>
     <div class="seg" id="dwgMode" style="margin-bottom:8px"><button data-mode="room">部屋を作る</button><button data-mode="fix">器具を直す</button><button data-mode="wall">壁の解体・仕上げ</button><button data-mode="cut">カッター</button><button data-mode="light">照明・配線</button><button data-mode="place">器具を置く</button><button data-mode="meas">測る</button></div>
-    ${oldReadRow(d)}${sheetRow(d)}<div id="dwgView"></div>${sheetNotes(d)}${titleRow(p)}
+    ${oldReadRow(d)}${sheetRow(d)}${symbolToolbar(d)}<div id="dwgView"></div>${sheetNotes(d)}${titleRow(p)}
     ${symbolPanel(d)}
     <div class="addbar" style="margin-top:10px" id="dwgBar"></div></div>
     <div id="dwgDemo"></div>
@@ -276,19 +276,33 @@ function drawingCard(p) {
     <div class="small muted" id="dwgStatus" style="margin-top:6px"></div></div>`;
 }
 
+const SYMBOL_LABELS = { match: '一致', similar: '類似', unknown: '不明' };
+function symbolToolbar(d) {
+  const list = d.symbols?.matches || [];
+  if (!list.length) return '';
+  const counts = { match: 0, similar: 0, unknown: 0 };
+  list.forEach(x => counts[symbolStatus(x)]++);
+  return `<div class="dwg-symbol-toolbar" aria-label="記号の色分け">
+    <button type="button" class="btn sm dwg-symbol-toggle" data-symbol-toggle aria-pressed="true" aria-controls="dwgView">${icon('layers')}<span data-symbol-toggle-text>色を消す</span></button>
+    <div class="dwg-symbol-legend small" aria-label="記号の判定別件数">${Object.entries(SYMBOL_LABELS).map(([k,label]) =>
+      `<span class="sym-${k}"><span class="dwg-symbol-key" aria-hidden="true"></span>${label} ${counts[k]}</span>`).join('')}</div>
+  </div>`;
+}
+
 function symbolPanel(d) {
   const r = d.symbols;
   if (!r && !/\.(jww|jwc|dxf)$/i.test(d.fileName || '')) return '';
   const list = r?.matches || [];
   const note = !r || r.unavailable ? 'この図面には照合結果がありません。JWW・DXFを読み直すと照合します。' :
-    r.limited ? '図面が複雑なため、一部を照合できませんでした。' :
     list.length ? '見積数量には反映しません。候補を選ぶと図面上の位置を拡大します。' :
-      '辞書に一致する記号は見つかりませんでした。図面に器具がないという意味ではありません。';
+      '照合できる記号候補は見つかりませんでした。図面に器具がないという意味ではありません。';
+  const detail = x => x.reason === 'ambiguous' ? `候補が近い：${(x.hints || []).join('／')}` :
+    x.reason === 'weak' ? `形が近い：${(x.hints || []).join('／')}` : x.reason === 'reader' ? '器具の読み取りで判定保留' :
+    x.entry_type === 'observed' ? `形状一致 ${Number(x.score)}/100` : '汎用ルール';
   return `<details class="more dwg-symbols"${list.length ? ' open' : ''}><summary>設備・什器の記号候補${r && !r.unavailable ? ` ${list.length}件` : ''}</summary>
-    <p class="small muted">${note}</p>
-    ${list.length ? `<label class="small dwg-symbol-toggle"><input type="checkbox" data-symbol-toggle>図面に候補枠を表示</label>
-    <div class="dwg-symbol-list">${list.map((x,i) => `<button type="button" data-symbol="${i}" aria-pressed="false" class="btn dwg-symbol-btn">
-      <span>${esc(x.label)}</span><span class="small muted">${x.entry_type === 'observed' ? `CC0実測形状・形状一致 ${Number(x.score)}/100` : '汎用ルール'}</span></button>`).join('')}</div>` : ''}
+    <p class="small muted">${note}${r?.limited ? ' 図面が複雑なため、一部を照合できませんでした。' : ''}</p>
+    ${list.length ? `<div class="dwg-symbol-list">${list.map((x,i) => { const k=symbolStatus(x); return `<button type="button" data-symbol="${i}" aria-pressed="false" class="btn dwg-symbol-btn sym-${k}">
+      <span class="dwg-symbol-badge">${SYMBOL_LABELS[k]}</span><span class="dwg-symbol-name">${esc(x.label)}</span><span class="small muted">${esc(detail(x))}</span></button>`; }).join('')}</div>` : ''}
   </details>`;
 }
 
@@ -596,7 +610,7 @@ function stepRooms(ctx) {
   const { p, body, refresh } = ctx;
   const sel = new Set();
   let view = null;
-  let symbolsOn = false, symbolSel = -1;
+  let symbolsOn = true, symbolSel = -1;
   let mode = 'room', fsel = -1, addAt = null, cutA = null, ltool = 'light', linkSel = null;
   let holesOn = true, selGeoKey = '', selGeo = null;   // 選んでいる区画の中の「囲まれた所」を床に入れるか（部屋にする前に決める）
   let sheetZoom = '';   // 大きく出している図（図枠・段の位置のキー）。'' は全体
@@ -625,8 +639,8 @@ function stepRooms(ctx) {
     return h;
   };
   const prevWork = workNow && workNow(); let keep0 = null;
-  if (prevWork && prevWork.pid === p.id) { mode = prevWork.mode; ltool = prevWork.ltool; wway = prevWork.wway; sheetZoom = prevWork.sheetZoom; keep0 = prevWork.v; }
-  workNow = () => ({ pid: p.id, mode, ltool, wway, sheetZoom, v: view && view.keep ? view.keep() : keep0 });
+  if (prevWork && prevWork.pid === p.id) { mode = prevWork.mode; ltool = prevWork.ltool; wway = prevWork.wway; sheetZoom = prevWork.sheetZoom; keep0 = prevWork.v; symbolsOn = prevWork.symbolsOn !== false; }
+  workNow = () => ({ pid: p.id, mode, ltool, wway, sheetZoom, symbolsOn, v: view && view.keep ? view.keep() : keep0 });
   const meas = { pts: [], cont: false, redo: [] };   // redo：「1つ戻す」で消した点（「1つ進む」で戻す。新しく点を打つと消える）
   /* 新しい読み取りの印（「新しい読み取り」を選んだ図面だけ。選んでいなければ今まで通り何も出さない） */
   const r2marks = () => (p.drawing && p.drawing.reader === 'v2' && p.drawing.analysis && p.drawing.analysis.marks) || null;
@@ -779,12 +793,17 @@ function stepRooms(ctx) {
       const symbolBox = symbolsOn ? (p.drawing.symbols?.matches || []).map((x,i) => {
         if (!Array.isArray(x.b) || x.b.length !== 4 || !x.b.every(Number.isFinite)) return '';
         const [a,b,c,d] = x.b, on = i === symbolSel;
-        return `<rect x="${a}" y="${-d}" width="${c-a}" height="${d-b}" class="dwg-symbol-box${on ? ' selected' : ''}" pointer-events="none" vector-effect="non-scaling-stroke"/>`;
+        const status = symbolStatus(x);
+        return `<rect x="${a}" y="${-d}" width="${c-a}" height="${d-b}" class="dwg-symbol-box sym-${status}${on ? ' selected' : ''}" data-symbol-status="${status}" pointer-events="none" vector-effect="non-scaling-stroke"/>`;
       }).join('') : '';
       view.paint(); view.overlay(selHoles + sheetOverlay(p.drawing, view.lw, allTexts()) + symbolBox + demoOverlay() + placeOverlay() + (mode === 'meas' || addAt ? measOverlay() : ''));
     }
-    const toggle = $('[data-symbol-toggle]', body); if (toggle) toggle.checked = symbolsOn;
-    $$('[data-symbol]', body).forEach(b => b.setAttribute('aria-pressed', String(symbolsOn && Number(b.dataset.symbol) === symbolSel)));
+    const toggle = $('[data-symbol-toggle]', body);
+    if (toggle) {
+      toggle.setAttribute('aria-pressed', String(symbolsOn));
+      $('[data-symbol-toggle-text]', toggle).textContent = symbolsOn ? '色を消す' : '色をつける';
+    }
+    $$('[data-symbol]', body).forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.symbol) === symbolSel)));
     const demoBox = body.querySelector('#dwgDemo'); if (demoBox) demoBox.innerHTML = demoList();
     const fxBox = body.querySelector('#dwgFix'); if (fxBox) fxBox.innerHTML = fixSummary(p.drawing);
     if (mode !== 'room') {
@@ -1210,7 +1229,7 @@ function stepRooms(ctx) {
           try {
             if (!res.symbolParts?.length) throw new Error('記号に使える線がありません');
             const dictionary = await loadSymbolDictionary();
-            symbols = { ...recognizeSymbols({ parts: res.symbolParts, regions: analysis?.regions }, dictionary), version: dictionary.schema_version };
+            symbols = { ...recognizeSymbols({ parts: res.symbolParts, regions: analysis?.regions, fixtures: res.fixtures }, dictionary), version: dictionary.schema_version };
           } catch (e2) { symbols = { unavailable: true }; console.warn('記号の辞書照合を行えませんでした', e2); }
         }
         p.rooms.forEach(r => { if (r.src === 'plan') { r.src = 'plan-old'; delete r.faces; } });
@@ -1240,7 +1259,7 @@ function stepRooms(ctx) {
             if (f2.xc !== undefined) delete f2.xc;
             const k2 = String(f2.i), r1 = O1[String(f1.i)]; if (r1 && r1.length) op2[k2] = r1; else delete op2[k2]; });
           p.drawing.v2 = { faces: P2.faces, open: op2, openDrop: drop, same, roles: res.roles || {}, single: res.single || 0, analysis: analyzeFrame({ segs: res.longSegs && res.longSegs.length ? res.longSegs : res.plan.segs, faces: P2.faces, texts: res.texts || [], fixtures: res.fixtures || [], doors: res.doorList || [], shapes: true }) }; } catch (e2) { console.warn('探し直した区画の解析に失敗', e2); } }
-        symbolsOn = false; symbolSel = -1; sel.clear(); touch(p); draw();
+        symbolSel = -1; sel.clear(); touch(p); draw();
         toast(`区画を ${res.plan.faces.length} 個${cad ? `、器具を ${res.fixtures.filter(x => x.t !== 'other').length} 個` : ''}見つけました${symbols?.matches?.length ? `。記号候補 ${symbols.matches.length} 件` : ''}`);
       } catch (err) {
         if (st) st.textContent = '読み込めませんでした：' + err.message;
@@ -1264,7 +1283,6 @@ function stepRooms(ctx) {
     touch(p); refresh();
   });
   body.addEventListener('change', e => {
-    if (e.target.matches('[data-symbol-toggle]')) { symbolsOn = e.target.checked; if (!symbolsOn) symbolSel = -1; paintSel(); return; }
     if (e.target.matches('[data-holes]')) { holesOn = e.target.checked; paintSel(); return; }
     if (e.target.matches('[data-sheet]')) {
       const d = p.drawing; d.sheetUse = { ...(d.sheetUse || {}), [e.target.dataset.sheet]: e.target.checked };
@@ -1315,12 +1333,13 @@ function stepRooms(ctx) {
     if (k && fsel >= 0) { const x = fxList()[fsel]; if (!x) return; x[k] = e.target.value; x.edited = true; if (k === 'back' || k === 't') x.out = null; touch(p); paintSel(); }
   });
   body.addEventListener('click', async e => {
+    if (e.target.closest('[data-symbol-toggle]')) { symbolsOn = !symbolsOn; paintSel(); return; }
     const sb = e.target.closest('[data-symbol]');
     if (sb) {
       const i = Number(sb.dataset.symbol), b = p.drawing?.symbols?.matches?.[i]?.b;
       if (!view || !b || !b.every(Number.isFinite)) return;
       const pad = Math.max(b[2]-b[0], b[3]-b[1], 0.35) * 0.65;
-      symbolsOn = true; symbolSel = i; sheetZoom = '';
+      symbolSel = i; sheetZoom = '';
       view.zoomTo([b[0]-pad,b[1]-pad,b[2]+pad,b[3]+pad]); paintSel();
       if (e.detail !== 0) body.querySelector('#dwgView')?.scrollIntoView({ block: 'nearest' });
       return;

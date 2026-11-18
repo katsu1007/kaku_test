@@ -129,7 +129,7 @@ export async function saveKV(key, val) {
 
 export function applyTheme() {
   document.documentElement.dataset.theme = state.settings.theme === 'light' ? 'light' : 'dark';
-  try { localStorage.setItem('kaku2-theme', document.documentElement.dataset.theme); } catch (e) { /* 表示の記憶だけなので、できなくても動く */ }
+  try { window.kakuStorage.setItem('kaku2-theme', document.documentElement.dataset.theme); } catch (e) { /* 表示の記憶だけなので、できなくても動く */ }
   const m = document.querySelector('meta[name="theme-color"]');
   if (m) m.content = state.settings.theme === 'light' ? '#f3f4f6' : '#0c1016';
 }

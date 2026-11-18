@@ -1,6 +1,7 @@
 /* 保存（IndexedDB）。失敗は必ず呼び出し元に投げる（黙って捨てない）。
  * projects：案件 1件1レコード ／ kv：設定・会社情報・単価マスターの変更など */
-const DB_NAME = 'kaku_generation';
+const storage = () => globalThis.kakuStorage || globalThis.localStorage;
+const DB_NAME = globalThis.kakuTestWeb ? 'kaku_test' : 'kaku_generation';
 const DB_VER = 1;
 export const DATA_VERSION = 1;
 const OLD_KEY = 'kaku-generation-v1';
@@ -151,7 +152,7 @@ export function convertOld(list) {
 /* 前のKAKU（localStorage）の案件をもう一度取り込む。同じ案件は上書き（id が old-○○ で同じになる） */
 export async function reimportOld() {
   let raw = null;
-  try { raw = localStorage.getItem(OLD_KEY); } catch (e) { throw new Error('前のKAKUのデータを読めませんでした：' + e.message); }
+  try { raw = storage().getItem(OLD_KEY); } catch (e) { throw new Error('前のKAKUのデータを読めませんでした：' + e.message); }
   if (!raw) return 0;
   const list = convertOld(JSON.parse(raw));
   for (const p of list) await putProject(p);
@@ -161,7 +162,7 @@ export async function reimportOld() {
 export async function migrateOnce() {
   if (await getKV('migratedOld', false)) return 0;
   let raw = null;
-  try { raw = localStorage.getItem(OLD_KEY); } catch (e) { raw = null; }
+  try { raw = storage().getItem(OLD_KEY); } catch (e) { raw = null; }
   let list = [];
   if (raw) {
     /* 読めない時は止めずに飛ばす（前は起動ごと止まり、今の案件も出なくなっていた）。1件ずつ移し、読めない案件だけ飛ばす */

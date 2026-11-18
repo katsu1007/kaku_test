@@ -540,6 +540,7 @@ details summary{cursor:pointer;font-weight:700;font-size:15px;margin-bottom:8px}
   </div>
 </div>
 
+<script src="./test-storage.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const yen=n=>Math.round(n).toLocaleString("ja-JP");
@@ -1394,7 +1395,7 @@ async function pdfTexts(doc){
   return out;
 }
 async function pdfLoad(buf){
-  const base=new URL('./vendor/pdfjs/',document.baseURI).href;
+  const base=new URL(location.pathname.endsWith('/js/kaku-engine.html')?'../vendor/pdfjs/':'./vendor/pdfjs/',document.baseURI).href;
   if(!window.pdfjsLib){window.pdfjsLib=await import(base+'pdf.min.mjs');
     pdfjsLib.GlobalWorkerOptions.workerSrc=base+'pdf.worker.min.mjs'}
   return pdfjsLib.getDocument({data:new Uint8Array(buf),isEvalSupported:false,cMapUrl:base+'cmaps/',cMapPacked:true}).promise;
@@ -3278,8 +3279,8 @@ function boot(){renderJobs();$("jobName").value=J().name||"";renderCust();render
   const v3=document.querySelector("#v3Btn");act.insertBefore(v3,$("moreBtn"));
   $("moreBtn").onclick=()=>{more.hidden=!more.hidden;$("moreBtn").setAttribute("aria-expanded",String(!more.hidden));$("moreBtn").textContent=more.hidden?"その他 ▾":"閉じる ▴"};
   /* タブの切り替え（最後に見たタブを覚えておく） */
-  let cur="input";try{cur=localStorage.getItem("ux-tab")||"input"}catch(_){}
-  const go=t=>{cur=t;body.dataset.tab=t;document.querySelectorAll(".uxtabs [data-go]").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.go===t)));try{localStorage.setItem("ux-tab",t)}catch(_){}};
+  let cur="input";try{cur=window.kakuStorage.getItem("ux-tab")||"input"}catch(_){}
+  const go=t=>{cur=t;body.dataset.tab=t;document.querySelectorAll(".uxtabs [data-go]").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.go===t)));try{window.kakuStorage.setItem("ux-tab",t)}catch(_){}};
   document.querySelectorAll(".uxtabs [data-go]").forEach(b=>b.onclick=()=>{go(b.dataset.go);const y=document.querySelector(".uxtabs").getBoundingClientRect().top+window.scrollY-8;if(window.scrollY>y)window.scrollTo(0,y)});
   document.querySelector(".totbar").onclick=()=>{go("sheet");const s2=document.querySelector('section[aria-label="工事ごとの数量と金額"]');if(s2)s2.scrollIntoView({behavior:"smooth",block:"start"})};
   go(cur);
@@ -3380,10 +3381,10 @@ function deliverCSV(fn,text){
 }
 function persist(body){
   if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.store){window.webkit.messageHandlers.store.postMessage(JSON.stringify(body))}
-  else{try{localStorage.setItem(LS,JSON.stringify(body))}catch(e){}}
+  else{try{window.kakuStorage.setItem(LS,JSON.stringify(body))}catch(e){}}
 }
 if(window.__nativeState){apply(window.__nativeState)}
-else{try{const v=localStorage.getItem(LS); if(v) apply(JSON.parse(v))}catch(_){}}
+else{try{const v=window.kakuStorage.getItem(LS); if(v) apply(JSON.parse(v))}catch(_){}}
 boot();
 $("storeNote").textContent="部屋・材料・単価はこの携帯に保存されます。";
 
@@ -3399,7 +3400,7 @@ function KAKU_wasteKind(id){const s=String(id||"");
   if(/-fl$|wood|-base$|joist|tatami/.test(s))return"w-wWood";
   return"w-waste"}
 if(typeof BUILTIN!=="undefined"){[["w-wGaraMix","がれき類 混合処分（タイル・モルタル・レンガ）","運搬込み",32000],["w-wGyp","石膏ボード処分","運搬込み",30000],["w-wWood","木くず処分","運搬込み",15000],["w-wMetal","金属くず（鉄・軽鉄）処分","運搬のみ。量により買取",5000]].forEach(([id,n,sp,p])=>{if(!BUILTIN.some(i=>i.id===id)){BUILTIN.push(C("work",id,n,sp,"m³"));if(typeof DEFAULT_PRICES!=="undefined")DEFAULT_PRICES[id]=p}})}
-persist=function(body){try{localStorage.setItem("kaku-engine-state",JSON.stringify(body))}catch(e){}}; /* 2026-11-09.9 KAKUで保存した単価・掛け率を、開き直した時に読み戻す（前は保存だけして読んでいなかった） */try{if(!window.__nativeState){const _v=localStorage.getItem("kaku-engine-state");if(_v)apply(JSON.parse(_v))}}catch(_){} {const _flush=()=>{try{persist(JSON.parse(JSON.stringify({v:3,...state})))}catch(_){}};window.addEventListener("pagehide",_flush);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")_flush()});}
+persist=function(body){try{window.kakuStorage.setItem("kaku-engine-state",JSON.stringify(body))}catch(e){}}; /* 2026-11-09.9 KAKUで保存した単価・掛け率を、開き直した時に読み戻す（前は保存だけして読んでいなかった） */try{if(!window.__nativeState){const _v=window.kakuStorage.getItem("kaku-engine-state");if(_v)apply(JSON.parse(_v))}}catch(_){} {const _flush=()=>{try{persist(JSON.parse(JSON.stringify({v:3,...state})))}catch(_){}};window.addEventListener("pagehide",_flush);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")_flush()});}
 const KAKU_CATS={demoF:"床の解体",demoW:"壁の解体",demoC:"天井の解体",board:"下地ボード",floor:"床の仕上げ",wall:"壁の仕上げ",ceil:"天井の仕上げ",trim:"巾木・廻り縁",fbase:"床下地"};
 window.KakuEngine={
   ready:true,version:2,

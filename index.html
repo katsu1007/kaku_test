@@ -7,16 +7,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="KAKU">
-<title>KAKU | 見積もりワークスペース</title>
+<meta name="apple-mobile-web-app-title" content="KAKU Test">
+<title>KAKU Test | 見積もりワークスペース</title>
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" href="./icon-192.png">
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="stylesheet" href="./css/app.css">
 <link rel="stylesheet" href="./css/symbols.css">
+<script src="./js/test-storage.js"></script>
 <script>
   /* 画面が出る前に明るさを合わせる（ちらつき防止）。正式な設定は保存場所から読む */
-  try { var t = localStorage.getItem('kaku2-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  try { var t = window.kakuStorage.getItem('kaku2-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 </script>
 </head>
 <body>

@@ -1,11 +1,21 @@
+.dwg-symbol-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0; }
+.dwg-symbol-toggle { min-height: 44px; }
+.dwg-symbol-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.dwg-symbol-legend > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.dwg-symbol-key { display: inline-block; width: 15px; height: 11px; border: 2px var(--symbol-line, solid) var(--symbol-tone); border-radius: 3px; }
 .dwg-symbols { margin: 10px 0; }
 .dwg-symbols summary { font-weight: 700; }
 .dwg-symbols p { margin: 6px 0; }
-.dwg-symbol-toggle { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; cursor: pointer; }
-.dwg-symbol-toggle input { accent-color: var(--accent); }
 .dwg-symbol-list { display: grid; gap: 6px; max-height: 240px; overflow: auto; padding: 2px; }
-.dwg-symbol-btn { justify-content: space-between; text-align: left; white-space: normal; flex-wrap: wrap; gap: 4px 12px; min-height: 44px; }
-.dwg-symbol-btn[aria-pressed="true"] { border-color: var(--accent); }
-.dwg-symbol-box { fill: #009b85; fill-opacity: .11; stroke: #008573; stroke-width: 2px; stroke-dasharray: 5 3; }
-.dwg-symbol-box.selected { stroke: #008573; stroke-width: 3px; stroke-dasharray: none; fill-opacity: .19; }
-html[data-theme="dark"] .dwg-symbol-box { stroke: #55dec1; }
+.dwg-symbol-btn { justify-content: flex-start; text-align: left; white-space: normal; flex-wrap: wrap; gap: 4px 8px; min-height: 44px; }
+.dwg-symbol-btn[aria-pressed="true"] { border-color: var(--symbol-tone); }
+.dwg-symbol-name { flex: 1 0 9em; min-width: 0; }
+.dwg-symbol-badge { color: var(--symbol-tone); border: 1px var(--symbol-line, solid) currentColor; border-radius: 5px; padding: 2px 6px; font-size: .78rem; font-weight: 700; }
+.sym-match { --symbol-tone: #00765d; }
+.sym-similar { --symbol-tone: #916000; --symbol-line: dashed; --symbol-dash: 7 4; }
+.sym-unknown { --symbol-tone: #9c377b; --symbol-line: dotted; --symbol-dash: 1 4; }
+html[data-theme="dark"] .sym-match { --symbol-tone: #5ce7ba; }
+html[data-theme="dark"] .sym-similar { --symbol-tone: #ffd372; }
+html[data-theme="dark"] .sym-unknown { --symbol-tone: #f2a4dd; }
+.dwg-symbol-box { fill: var(--symbol-tone); fill-opacity: .14; stroke: var(--symbol-tone); stroke-width: 2px; stroke-dasharray: var(--symbol-dash, none); stroke-linecap: round; }
+.dwg-symbol-box.selected { stroke-width: 4px; fill-opacity: .25; }

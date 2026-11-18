@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "KAKU | 建築見積ワークスペース",
-  "short_name": "KAKU",
+  "name": "KAKU Test | 建築見積ワークスペース",
+  "short_name": "KAKU Test",
   "description": "建築・リフォーム向け見積もりワークスペース",
   "start_url": "./",
   "scope": "./",

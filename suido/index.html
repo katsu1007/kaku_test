@@ -425,14 +425,15 @@ html[data-sk=dark] .menu-btn span{background:#e7ecf4}
   .cadview{max-height:calc(100vh - 150px)!important}
 }
 </style>
+<script src="../js/test-storage.js"></script>
 <script>
 /* 画面の明るさ（自動・暗い・明るい）。iPhoneの設定に合わせるのが最初の設定 */
-(function(){const K='suido-theme';const get=()=>{try{return localStorage.getItem(K)||'auto'}catch(e){return'auto'}};
+(function(){const K='suido-theme';const get=()=>{try{return window.kakuStorage.getItem(K)||'auto'}catch(e){return'auto'}};
   const L={auto:'iPhoneの設定に合わせる',dark:'暗い画面',light:'明るい画面'};
   function apply(){const m=get(),dark=m==='dark'||(m==='auto'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.setAttribute('data-sk',dark?'dark':'light');const mt=document.querySelector('meta[name=theme-color]');if(mt)mt.setAttribute('content',dark?'#0d1119':'#f8f6f1');
     const b=document.getElementById('skThemeBtn');if(b){b.textContent=m==='auto'?'◐':m==='dark'?'☾':'☀';b.setAttribute('aria-label','画面の明るさ：'+L[m])}}
-  window.skThemeCycle=function(){const o=['auto','dark','light'],m=o[(o.indexOf(get())+1)%3];try{localStorage.setItem(K,m)}catch(e){}apply();if(typeof toast==='function')toast('画面の明るさ：'+L[m])};
+  window.skThemeCycle=function(){const o=['auto','dark','light'],m=o[(o.indexOf(get())+1)%3];try{window.kakuStorage.setItem(K,m)}catch(e){}apply();if(typeof toast==='function')toast('画面の明るさ：'+L[m])};
   apply();try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',apply)}catch(e){}
   const add=()=>{const t=document.querySelector('.top .topright');if(!t||document.getElementById('skThemeBtn'))return;const b=document.createElement('button');b.id='skThemeBtn';b.className='btn light skbtn';b.onclick=window.skThemeCycle;t.insertBefore(b,document.getElementById('menuBtn'));apply()};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',add);else add()})();
@@ -1418,7 +1419,7 @@ function renderBoard(){
       ask("「"+(j.name||"名前なし")+"」を削除しますか？\n削除すると元に戻せません。",()=>{removeJob(id);toast("現場を削除しました")})});
     el.addEventListener("click",()=>openJob(id))});
 }
-function removeJob(id){const i=state.jobs.findIndex(j=>j.id===id);if(i<0)return;state.jobs.splice(i,1);try{localStorage.removeItem("suido-photo-"+id)}catch(e){}
+function removeJob(id){const i=state.jobs.findIndex(j=>j.id===id);if(i<0)return;state.jobs.splice(i,1);try{window.kakuStorage.removeItem("suido-photo-"+id)}catch(e){}
   if(!state.jobs.length)state.jobs.push(newJob("現場1"));if(!state.jobs.some(j=>j.id===state.cur))state.cur=state.jobs[0].id;save();boot()}
 /* 長押しの後に指を離した時の「開く」だけを止める（確認の画面のボタンは止めない） */
 let noClickUntil=0;document.addEventListener("click",e=>{if(Date.now()<noClickUntil&&!(e.target.closest&&e.target.closest("#askBox"))){noClickUntil=0;e.stopImmediatePropagation();e.preventDefault()}},true);
@@ -1454,11 +1455,11 @@ document.addEventListener("change",e=>{const i=e.target;if(!i||!i.matches||!i.ma
 /* ================= 写真・図面の上でなぞって長さを測る ================= */
 const TR={job:"",img:null,w:0,h:0,scale:0,sp:[],pts:[],mode:"scale",z:1,ortho:true,target:"",mm:""};
 function trLoad(){const j=J();if(TR.job===j.id)return;Object.assign(TR,{job:j.id,img:null,w:0,h:0,sp:[],pts:[],mode:"scale",z:1,mm:""});TR.scale=num((j.tr||{}).scale);if(TR.scale)TR.mode="trace";
-  try{const s=localStorage.getItem("suido-photo-"+j.id);if(s){const o=JSON.parse(s);TR.img=o.img;TR.w=o.w;TR.h=o.h}}catch(e){}}
+  try{const s=window.kakuStorage.getItem("suido-photo-"+j.id);if(s){const o=JSON.parse(s);TR.img=o.img;TR.w=o.w;TR.h=o.h}}catch(e){}}
 function trFile(f){if(!f)return;if(!/^image\//.test(f.type)){toast("画像を選んでください（PDFは画面のスクショを撮ってから選んでください）");return}
   const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,2000/Math.max(im.width,im.height));const c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
     c.getContext("2d").drawImage(im,0,0,c.width,c.height);TR.img=c.toDataURL("image/jpeg",0.82);TR.w=c.width;TR.h=c.height;TR.sp=[];TR.pts=[];TR.scale=0;TR.mode="scale";TR.z=1;const j=J();j.tr={};save();
-    try{localStorage.setItem("suido-photo-"+j.id,JSON.stringify({img:TR.img,w:TR.w,h:TR.h}))}catch(e){}renderTrace()};im.src=rd.result};rd.readAsDataURL(f)}
+    try{window.kakuStorage.setItem("suido-photo-"+j.id,JSON.stringify({img:TR.img,w:TR.w,h:TR.h}))}catch(e){}renderTrace()};im.src=rd.result};rd.readAsDataURL(f)}
 function trLenM(){let s=0;for(let i=1;i<TR.pts.length;i++)s+=Math.hypot(TR.pts[i][0]-TR.pts[i-1][0],TR.pts[i][1]-TR.pts[i-1][1]);return s*TR.scale}
 function renderTrace(){trLoad();const box=$("traceCard"),j=J();
   if(!TR.img){box.innerHTML=`<div class="sectionhead"><h2>図面・写真でなぞって長さを測る</h2></div>
@@ -2047,7 +2048,7 @@ function apply(saved){
 }
 function persist(body){
   if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.store){window.webkit.messageHandlers.store.postMessage(JSON.stringify(body))}
-  else{try{localStorage.setItem(LS,JSON.stringify(body))}catch(e){}}
+  else{try{window.kakuStorage.setItem(LS,JSON.stringify(body))}catch(e){}}
 }
 async function webDownloads(){try{return window.claude&&window.claude.use?await window.claude.use("downloads"):null}catch(e){return null}}
 function scopeCss(css){return css.replace(/(^|})\s*([^{}@]+)\{/g,(m,a,sel)=>a+sel.split(",").map(x=>{x=x.trim();return x==="body"?".estdoc":".estdoc "+x}).join(",")+"{")}
@@ -2088,7 +2089,7 @@ function boot(){
 
 try{
   if(window.__nativeState)apply(window.__nativeState);
-  else{const v=localStorage.getItem(LS);if(v)apply(JSON.parse(v))}
+  else{const v=window.kakuStorage.getItem(LS);if(v)apply(JSON.parse(v))}
 }catch(_){}
 if(!state.jobs.length){const j=exampleJob();state.jobs=[j];state.cur=j.id}
 boot();

@@ -37,9 +37,9 @@ function fixBox(x, lw, on) {
 }
 
 /* 通り芯を出すか（端末に覚える。前のKAKUと同じ） */
-const bgOn = () => { try { return localStorage.getItem('kaku-bg') !== '0'; } catch (e) { return true; } };
-const gridOn = () => { try { return localStorage.getItem('kaku-grid') === '1'; } catch (e) { return false; } };
-const txtOn = () => { try { return localStorage.getItem('kaku-dtext') !== '0'; } catch (e) { return true; } };   // 図面の文字（最初は出す）
+const bgOn = () => { try { return window.kakuStorage.getItem('kaku-bg') !== '0'; } catch (e) { return true; } };
+const gridOn = () => { try { return window.kakuStorage.getItem('kaku-grid') === '1'; } catch (e) { return false; } };
+const txtOn = () => { try { return window.kakuStorage.getItem('kaku-dtext') !== '0'; } catch (e) { return true; } };   // 図面の文字（最初は出す）
 export function planView(box, plan, opt = {}) {
   /* 全体の大きさ：図面のずっと遠くにぽつんとある線（三井屋の図面は 600m 下に1本）まで入れると、
      図面が点のように小さくなる。線の端の 1%〜99% の範囲を芯にして、芯の大きさの半分より外に出る線は入れない（区画は全部入れる） */
@@ -270,13 +270,13 @@ export function planView(box, plan, opt = {}) {
   box.querySelector('.pv-tools').addEventListener('click', e => {
     const z = e.target.closest('[data-z]'); if (!z) return;
     const r = svg.getBoundingClientRect();
-    if (z.dataset.z === 'txt') { const on = !txtOn(); try { localStorage.setItem('kaku-dtext', on ? '1' : '0'); } catch (e2) { /* 覚えられなくても切り替える */ }
+    if (z.dataset.z === 'txt') { const on = !txtOn(); try { window.kakuStorage.setItem('kaku-dtext', on ? '1' : '0'); } catch (e2) { /* 覚えられなくても切り替える */ }
       const g = svg.querySelector('.dtexts'); if (g) { if (on) g.removeAttribute('display'); else g.setAttribute('display', 'none'); }
       z.classList.toggle('on', on); z.setAttribute('aria-pressed', on); paint(); return; }
-    if (z.dataset.z === 'grid') { const on = !gridOn(); try { localStorage.setItem('kaku-grid', on ? '1' : '0'); } catch (e2) { /* 覚えられなくても表示は切り替える */ }
+    if (z.dataset.z === 'grid') { const on = !gridOn(); try { window.kakuStorage.setItem('kaku-grid', on ? '1' : '0'); } catch (e2) { /* 覚えられなくても表示は切り替える */ }
       const g = svg.querySelector('.pv-grid'); if (g) { if (on) g.removeAttribute('display'); else g.setAttribute('display', 'none'); }
       z.classList.toggle('on', on); z.setAttribute('aria-pressed', on); return; }
-    if (z.dataset.z === 'bg') { const on = !bgOn(); try { localStorage.setItem('kaku-bg', on ? '1' : '0'); } catch (e2) { /* 表示だけ切り替える */ }
+    if (z.dataset.z === 'bg') { const on = !bgOn(); try { window.kakuStorage.setItem('kaku-bg', on ? '1' : '0'); } catch (e2) { /* 表示だけ切り替える */ }
       const g = svg.querySelector('.pv-bg'); if (g) { if (on) g.removeAttribute('display'); else g.setAttribute('display', 'none'); }
       z.classList.toggle('on', on); z.setAttribute('aria-pressed', on); return; }
     if (z.dataset.z === 'fit') { vb = base.slice(); set(); } else zoomAt(r.left + r.width / 2, r.top + r.height / 2, z.dataset.z === 'in' ? 1.4 : 1 / 1.4);

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cadSymbolParts, recognizeSymbols } from '../js/reader2/symbols.js';
+import { cadSymbolParts, recognizeSymbols, symbolStatus } from '../js/reader2/symbols.js';
 
 const dictionary = JSON.parse(readFileSync(new URL('../js/reader2/symbol_dictionary.json', import.meta.url), 'utf8'));
 const observed = dictionary.symbols.filter(x => x.entry_type === 'observed');
@@ -32,6 +32,7 @@ test('展開された全CC0記号を、平行移動・90度回転・鏡像で拾
     assert.equal(result.length,1,e.id);
     assert.equal(result[0].id,e.id);
     assert.equal(result[0].entry_type,'observed');
+    assert.equal(result[0].status,'match');
     assert.ok(result[0].score>=95);
   }
 });
@@ -55,6 +56,7 @@ test('ロッカーの等間隔の仕切りを判定し、ただの長方形・�
   assert.equal(r.length,1);
   assert.equal(r[0].category,'locker');
   assert.equal(r[0].entry_type,'generic_pattern');
+  assert.equal(r[0].status,'similar');
   assert.deepEqual(r[0].b,[0,0,1.2,.45]);
 });
 
@@ -62,6 +64,36 @@ test('注記レイヤー・表題欄・設備表を除外', () => {
   const s=symbol('urinal_wall',2,3);
   for (const type of ['table','title']) assert.deepEqual(recognize({segs:s,regions:[{type,box:[1,2,3,4]}]}),[]);
   assert.deepEqual(recognize({parts:parts(s,'寸法')}),[]);
+});
+
+test('判定保留を不明として表示し、重複・表題欄・無関係な器具は除外', () => {
+  const segs=symbol('urinal_wall',2,3);
+  const fixture = b => ({t:'unknown',b});
+  const match = recognize({segs})[0];
+  const matches=recognize({segs, fixtures:[
+    fixture(match.b), fixture([5,5,5.6,5.7]), fixture([5,5,5.6,5.7]),
+    fixture([7,7,7.6,7.9]), fixture([8.1,7,8.13,7.8]), {t:'other',b:[9,9,9.6,9.8]},
+  ],regions:[{type:'title',box:[6.8,6.8,8,8]}]});
+  assert.deepEqual(matches.map(x=>[x.status,x.reason]),[['match',undefined],['unknown','reader']]);
+  assert.deepEqual(matches[1].b,[5,5,5.6,5.7]);
+});
+
+test('辞書の種類が拮抗する記号に断定した分類を付けない', () => {
+  const shape=observed.find(x=>x.id==='urinal_wall');
+  const r=recognizeSymbols({segs:symbol(shape.id,2,3)}, {symbols:[
+    shape,{...shape,id:'alternate',category:'basin',label:'洗面台候補'},
+  ]}).matches;
+  assert.equal(r.length,1);
+  assert.equal(r[0].status,'unknown');
+  assert.equal(r[0].reason,'ambiguous');
+  assert.deepEqual(r[0].hints,[shape.label,'洗面台候補']);
+});
+
+test('すでに保存された記号にもスコアと辞書種別で色を付ける', () => {
+  assert.equal(symbolStatus({entry_type:'observed',score:95}),'match');
+  assert.equal(symbolStatus({entry_type:'observed',score:83}),'similar');
+  assert.equal(symbolStatus({entry_type:'generic_pattern',score:80}),'similar');
+  assert.equal(symbolStatus({entry_type:'unresolved',status:'unknown',score:99}),'unknown');
 });
 
 test('CADの曲線と親INSERTを拾い、元データは変更しない', () => {

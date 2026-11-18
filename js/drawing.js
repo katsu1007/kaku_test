@@ -22,7 +22,7 @@ export function getEngine() {
           else if (++n > 150) { clearInterval(t); reject(new Error('図面の読み取りの部品が起動しませんでした')); }
         }, 100);
       };
-      f.srcdoc = html;
+      f.srcdoc = html.replace('src="./test-storage.js"', 'src="./js/test-storage.js"');
     }).catch(e => { enginePromise = null; reject(e); });
   });
   return enginePromise;
