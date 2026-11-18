@@ -1,4 +1,5 @@
 .dwg-symbol-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0; }
+.dwg-symbol-state { margin: 8px 0; }
 .dwg-symbol-toggle { min-height: 44px; }
 .dwg-symbol-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .dwg-symbol-legend > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
@@ -18,4 +19,5 @@ html[data-theme="dark"] .sym-match { --symbol-tone: #5ce7ba; }
 html[data-theme="dark"] .sym-similar { --symbol-tone: #ffd372; }
 html[data-theme="dark"] .sym-unknown { --symbol-tone: #f2a4dd; }
 .dwg-symbol-box { fill: var(--symbol-tone); fill-opacity: .14; stroke: var(--symbol-tone); stroke-width: 2px; stroke-dasharray: var(--symbol-dash, none); stroke-linecap: round; }
+.dwg-symbol-box.sym-match { stroke-width: 2.5px; }
 .dwg-symbol-box.selected { stroke-width: 4px; fill-opacity: .25; }

@@ -38,3 +38,16 @@ for obj in insert.virtual_entities():
     obj.dxf.layer = "0"
     single.modelspace().add_foreign_entity(obj)
 single.saveas(output_dir / "symbol-test-no-room.dxf")
+
+# 辞書の形状を使わず、従来のKAKUだけが拾える衛生器具を用意する。
+legacy = ezdxf.new("R2010", units=4)
+legacy.layers.new("WALL")
+legacy.layers.new("PLUMB")
+model = legacy.modelspace()
+walls = [(0, 0), (4000, 0), (4000, 3000), (0, 3000), (0, 0)]
+for a, b in zip(walls, walls[1:]):
+    model.add_line(a, b, dxfattribs={"layer": "WALL"})
+model.add_lwpolyline([(130, 250), (1690, 250), (1690, 1060), (130, 1060)],
+                     close=True, dxfattribs={"layer": "PLUMB"})
+model.add_ellipse((910, 655), major_axis=(700, 0), ratio=.49, dxfattribs={"layer": "PLUMB"})
+legacy.saveas(output_dir / "symbol-legacy-bath.dxf")

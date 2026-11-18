@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cadSymbolParts, recognizeSymbols, symbolStatus } from '../js/reader2/symbols.js';
+import { cadSymbolParts, recognizeSymbols, symbolStatus, drawingSymbolMatches } from '../js/reader2/symbols.js';
 
 const dictionary = JSON.parse(readFileSync(new URL('../js/reader2/symbol_dictionary.json', import.meta.url), 'utf8'));
 const observed = dictionary.symbols.filter(x => x.entry_type === 'observed');
@@ -66,16 +66,40 @@ test('注記レイヤー・表題欄・設備表を除外', () => {
   assert.deepEqual(recognize({parts:parts(s,'寸法')}),[]);
 });
 
-test('判定保留を不明として表示し、重複・表題欄・無関係な器具は除外', () => {
+const display = d=>drawingSymbolMatches(d,{bath:'浴槽',toilet:'便器',urinal:'小便器',counter:'洗面台'});
+
+test('保存済みの器具は辞書なしでも検出として表示。判定保留は不明', () => {
+  const d={symbols:{unavailable:true},fixtures:[{t:'bath',b:[1,1,2.6,1.82]},{t:'unknown',b:[4,4,4.6,4.7]}]};
+  const before=structuredClone(d);
+  assert.deepEqual(display(d).map(x=>[x.status,x.reason,x.label]),[
+    ['match','detected','浴槽'],['unknown','reader','種類を特定できない器具'],
+  ]);
+  assert.deepEqual(d,before);
+  delete d.symbols;
+  assert.equal(display(d).length,2);
+});
+
+test('重複・表題欄・手で追加した器具・壊れた寸法を候補から除外', () => {
   const segs=symbol('urinal_wall',2,3);
   const fixture = b => ({t:'unknown',b});
   const match = recognize({segs})[0];
-  const matches=recognize({segs, fixtures:[
+  const matches=display({symbols:{matches:[match,{b:[19,19,20,20],status:'unknown',reason:'reader'}]}, fixtures:[
     fixture(match.b), fixture([5,5,5.6,5.7]), fixture([5,5,5.6,5.7]),
-    fixture([7,7,7.6,7.9]), fixture([8.1,7,8.13,7.8]), {t:'other',b:[9,9,9.6,9.8]},
-  ],regions:[{type:'title',box:[6.8,6.8,8,8]}]});
+    {t:'urinal',b:match.b}, {t:'bath',b:[7,7,7.6,7.9]}, fixture([8.1,7,8.1,7.8]), {t:'other',b:[9,9,9.6,9.8]},
+    {t:'toilet',b:[10,10,11,11],v:true},{t:'toilet',b:[12,12,13,13],added:true},
+  ],analysis:{regions:[{type:'title',box:[6.8,6.8,8,8]}]}});
   assert.deepEqual(matches.map(x=>[x.status,x.reason]),[['match',undefined],['unknown','reader']]);
   assert.deepEqual(matches[1].b,[5,5,5.6,5.7]);
+});
+
+test('弱い辞書照合と器具検出が重なったら一枠。手動修正・除外があれば優先', () => {
+  const b=[1,1,2,2], similar={id:'shape',status:'similar',b}, match={...similar,status:'match'};
+  const of=(s,t,edited=false)=>display({symbols:{matches:[s]},fixtures:[{t,b:[1.02,0.99,2.02,2],edited}]});
+  assert.deepEqual(of(similar,'counter').map(x=>x.id),['reader-counter']);
+  assert.deepEqual(of(match,'counter').map(x=>x.id),['shape']);
+  assert.deepEqual(of(match,'counter',true).map(x=>x.id),['reader-counter']);
+  assert.deepEqual(of(match,'unknown',true).map(x=>x.status),['unknown']);
+  assert.equal(of(match,'other',true).length,0);
 });
 
 test('辞書の種類が拮抗する記号に断定した分類を付けない', () => {

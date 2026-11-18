@@ -281,12 +281,47 @@ function overlap(a,b) {
   return i/(width(a)*height(a)+width(b)*height(b)-i||1);
 }
 
-export function recognizeSymbols({parts, segs=[], regions=[], fixtures=[]},dictionary) {
+const validBox = b => Array.isArray(b) && b.length===4 && b.every(Number.isFinite) && width(b)>0 && height(b)>0;
+const excludedRegions = regions => (regions || []).filter(r => (r.type==='title'||r.type==='table') && validBox(r.box)).map(r => r.box);
+const sameMark = (a,b) => {
+  const iou=overlap(a,b);
+  return iou>0.55 || (iou>0.25 &&
+    Math.abs(a[0]+a[2]-b[0]-b[2])<=Math.min(width(a),width(b))*0.65 &&
+    Math.abs(a[1]+a[3]-b[1]-b[3])<=Math.min(height(a),height(b))*0.65);
+};
+
+/* 画面の候補だけを合わせる。図面の器具・見積・辞書の照合結果は書き換えない。 */
+export function drawingSymbolMatches(d,names) {
+  const excluded=excludedRegions(d?.analysis?.regions);
+  const allowed=b=>validBox(b) && !excluded.some(q=>inside(b,q));
+  const saved=(d?.symbols?.matches || []).filter(x=>x.reason!=='reader' && allowed(x.b));
+  const fixtures=(d?.fixtures || []).filter(f=>!f.v && !f.added && allowed(f.b));
+  const rejected=fixtures.filter(f=>f.t==='other' && (f.edited || f.r2));
+  const detected=fixtures.filter(f=>f.t!=='other' && f.t!=='unknown' && Object.hasOwn(names,f.t));
+  const held=fixtures.filter(f=>f.t==='unknown');
+  // A user correction wins over both readers, otherwise keep strong dictionary results.
+  const overrides=[...rejected,...held.filter(f=>f.edited)];
+  const matches=saved.filter(x=>!overrides.some(f=>sameMark(f.b,x.b)) &&
+    !detected.some(f=>sameMark(f.b,x.b) && (f.edited || symbolStatus(x)!=='match')));
+  for (const f of detected) {
+    if (!matches.some(x=>sameMark(x.b,f.b))) matches.push({
+      id:`reader-${f.t}`,category:f.t,label:names[f.t],entry_type:'reader',status:'match',reason:'detected',b:f.b,
+    });
+  }
+  for (const f of held) {
+    if (!matches.some(x=>sameMark(x.b,f.b))) matches.push({
+      id:'unknown',category:'unknown',label:'種類を特定できない器具',entry_type:'unresolved',status:'unknown',reason:'reader',b:f.b,
+    });
+  }
+  return matches.sort((a,b)=>statusOrder[symbolStatus(a)]-statusOrder[symbolStatus(b)]);
+}
+
+export function recognizeSymbols({parts, segs=[], regions=[]},dictionary) {
   const input=parts?.length ? parts : segs.map(s => ({kind:'line',segs:[s]}));
   if (input.length>MAX_PARTS) return {limited:true,matches:[]};
   const entries=dictionary.symbols.filter(e => e.entry_type==='generic_pattern' ||
     (e.entry_type==='observed' && e.segments?.length && e.features?.width_mm>0 && e.features?.depth_mm>0));
-  const excluded=regions.filter(r => r.type==='title'||r.type==='table').map(r => r.box);
+  const excluded=excludedRegions(regions);
   const P=[];
   for (const p of input) {
     if (DROP.test(p.layer||'') || !p.segs?.length || p.segs.length>360) continue;
@@ -309,19 +344,10 @@ export function recognizeSymbols({parts, segs=[], regions=[], fixtures=[]},dicti
     if (x && !excluded.some(q => inside(x.b,q))) found.push(x);
   }
   const matches=[];
-  for (const f of fixtures) {
-    const b=f.b;
-    if (f.t!=='unknown' || !Array.isArray(b) || b.length!==4 || !b.every(Number.isFinite) ||
-      Math.min(width(b),height(b))<0.14 || Math.max(width(b),height(b))>3.3 || excluded.some(q=>inside(b,q))) continue;
-    found.push({id:'unknown',category:'unknown',label:'種類を特定できない器具',entry_type:'unresolved',
-      status:'unknown',reason:'reader',score:0,b:b.map(round)});
-  }
   for (const x of found.sort((a,b) => statusOrder[a.status]-statusOrder[b.status] ||
     b.score-a.score || a.b[1]-b.b[1] || a.b[0]-b.b[0])) {
     if (matches.length>=300) { limited=true; break; }
-    const cx=(x.b[0]+x.b[2])/2, cy=(x.b[1]+x.b[3])/2;
-    if (!matches.some(y => overlap(x.b,y.b)>0.55 || (x.reason==='reader' &&
-      overlap(x.b,y.b)>0.25 && inside([cx,cy,cx,cy],y.b)))) matches.push(x);
+    if (!matches.some(y => overlap(x.b,y.b)>0.55)) matches.push(x);
   }
   return {limited,matches};
 }
