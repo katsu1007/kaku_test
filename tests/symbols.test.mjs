@@ -6,6 +6,7 @@ import { cadSymbolParts, recognizeSymbols, symbolStatus, drawingSymbolMatches } 
 const dictionary = JSON.parse(readFileSync(new URL('../js/reader2/symbol_dictionary.json', import.meta.url), 'utf8'));
 const observed = dictionary.symbols.filter(x => x.entry_type === 'observed');
 const newFurniture = ['desk_bench','desk_bench_set','desk_meeting_set','chair_task','chair_arm','chair_recliner'];
+const newSeats = ['chair_sofa_two','chair_sofa_three','chair_sofa_sectional','chair_high','chair_ottoman'];
 const symbol = (id, x, y, angle=0, mirror=false, resize=1) => {
   const e = observed.find(q=>q.id===id), s = resize*Math.max(e.features.width_mm,e.features.depth_mm)/1000;
   const c = Math.cos(angle), t = Math.sin(angle);
@@ -17,14 +18,14 @@ const parts = (lines, layer='', group=null) => lines.map(s => ({kind:'line',laye
 const recognize = o => recognizeSymbols(o,dictionary).matches;
 
 test('辞書に出典と実形状があり、汎用パターンとは区別する', () => {
-  assert.equal(observed.length,13);
+  assert.equal(observed.length,18);
   for (const e of observed) {
     assert.equal(e.provenance.license,'CC0-1.0');
     assert.match(e.provenance.sha256,/^[a-f0-9]{64}$/);
     assert.ok(e.segments.length>4);
     assert.ok(e.features.width_mm>0);
   }
-  assert.equal(dictionary.symbols.filter(x => x.entry_type==='generic_pattern' && !x.segments && x.provenance.kind==='original_heuristic').length,5);
+  assert.equal(dictionary.symbols.filter(x => x.entry_type==='generic_pattern' && !x.segments && x.provenance.kind==='original_heuristic').length,6);
 });
 
 test('家具6形状は、旧辞書で種類を絞れない角度・寸法違いの展開図形でも個別に検出する', () => {
@@ -34,6 +35,34 @@ test('家具6形状は、旧辞書で種類を絞れない角度・寸法違い�
     const prior = recognizeSymbols({segs},older).matches;
     assert.deepEqual(prior.map(r=>[r.id,r.status]),id==='desk_bench' ? [['generic_desk','similar']] : [],id);
     assert.deepEqual(recognize({segs}).map(r=>[r.id,r.status]),[[id,'match']],id);
+  }
+});
+
+test('ソファ3種・ハイチェア・オットマンを回転、鏡像、寸法差がある展開図形でも区別する', () => {
+  for (const [i,id] of newSeats.entries()) {
+    const segs=symbol(id,7,9,i%2 ? -.47 : .38,i%2===0,i%2 ? .93 : 1.07);
+    assert.deepEqual(recognize({segs}).map(r=>[r.id,r.status]),[[id,'match']],id);
+  }
+  // 外周だけでは角丸の箱と同じ。二重輪郭がない場合にはオットマンと判定しない。
+  assert.deepEqual(recognize({segs:symbol('chair_ottoman',2,3,.43).slice(0,36)}),[]);
+});
+
+test('丸スツールは脚線のある円を類似に出す。円だけ、同心円、中心で交わる線は除外', () => {
+  const p=(a,r)=>[3+r*Math.cos(a),4+r*Math.sin(a)];
+  const circle=r=>Array.from({length:32},(_,i)=>[...p(i*Math.PI/16,r),...p((i+1)*Math.PI/16,r)]);
+  const legs=(n,inner,a=.27)=>Array.from({length:n},(_,i)=>{
+    const angle=a+i*2*Math.PI/n;
+    return [...p(angle,inner),...p(angle,.21)];
+  });
+  for (const n of [3,4]) {
+    const segs=legs(n,.12), native=cadSymbolParts([{k:'circle',c:[3,4],r:.21},
+      ...segs.map(([x,y,u,v])=>({k:'line',a:[x,y],b:[u,v]}))],1);
+    for (const geometry of [{segs:[...circle(.21),...segs]},{parts:native}]) {
+      assert.deepEqual(recognize(geometry).map(x=>[x.id,x.status]),[['generic_round_stool','similar']]);
+    }
+  }
+  for (const extras of [[],circle(.15),legs(4,0),legs(2,.12),[...legs(3,.12),...legs(1,.12,1.17)]]) {
+    assert.deepEqual(recognize({segs:[...circle(.21),...extras]}),[]);
   }
 });
 

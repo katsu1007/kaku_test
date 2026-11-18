@@ -176,13 +176,13 @@ function linearEvidence(v) {
     if (horizontal) {
       if (Math.max(Math.abs(y-y0),Math.abs(z-y0))<tol) edge[0].push([Math.min(x,u),Math.max(x,u)]);
       else if (Math.max(Math.abs(y-y1),Math.abs(z-y1))<tol) edge[1].push([Math.min(x,u),Math.max(x,u)]);
-      else if (Math.min(x,u)>x0+tol && Math.max(x,u)<x1-tol) inset.push(1);
+      else if (Math.abs(x-u)>=0.04 && Math.min(x,u)>x0+tol && Math.max(x,u)<x1-tol) inset.push(1);
     }
     if (vertical) {
       if (Math.max(Math.abs(x-x0),Math.abs(u-x0))<tol) edge[2].push([Math.min(y,z),Math.max(y,z)]);
       else if (Math.max(Math.abs(x-x1),Math.abs(u-x1))<tol) edge[3].push([Math.min(y,z),Math.max(y,z)]);
       else if (Math.abs(y-z)>=h-2*tol) div.push((x+u)/2);
-      else if (Math.min(y,z)>y0+tol && Math.max(y,z)<y1-tol) inset.push(1);
+      else if (Math.abs(y-z)>=0.04 && Math.min(y,z)>y0+tol && Math.max(y,z)<y1-tol) inset.push(1);
     }
   }
   const cuts = div.sort((a,b) => a-b).filter((x,i) => !i || x-div[i-1]>tol);
@@ -190,9 +190,42 @@ function linearEvidence(v) {
   return {edge:Math.min(...edge.map((d,i) => intervals(d)/(i<2?w:h))), cuts:cuts.length, gaps, inset:inset.length};
 }
 
+// Accept a round seat with distinct, evenly spaced short leg marks. Apply the
+// same geometry test to native circles and JWW linework; do not infer height.
+function roundStoolScore(p,{rr,b:[x0,y0,x1,y1]}) {
+  const cx=(x0+x1)/2, cy=(y0+y1)/2, r=(x1-x0+y1-y0)/4, tau=Math.PI*2;
+  const rim=[], legs=[];
+  let otherLength=0;
+  for (const [x,y,u,v] of rr) {
+    const a=(x-cx)/r, b=(y-cy)/r, c=(u-cx)/r, d=(v-cy)/r;
+    const ra=Math.hypot(a,b), rb=Math.hypot(c,d), len=Math.hypot(a-c,b-d);
+    const gap=Math.abs(Math.atan2(a*d-b*c,a*c+b*d));
+    const nearRim=q=>Math.abs(q-1)<=p.rim_radius_tolerance;
+    if (nearRim(ra) && nearRim(rb) && gap<=Math.PI/6 &&
+        nearRim(Math.hypot((a+c)/2,(b+d)/2))) {
+      const angle=(Math.atan2(b+d,a+c)+tau)%tau, lo=angle-gap/2, hi=angle+gap/2;
+      if (lo<0) rim.push([0,hi],[lo+tau,tau]);
+      else if (hi>tau) rim.push([lo,tau],[0,hi-tau]);
+      else rim.push([lo,hi]);
+    } else if (gap<0.16 && nearRim(Math.max(ra,rb)) &&
+               between(Math.min(ra,rb),p.leg_inner_radius_ratio)) {
+      legs.push((Math.atan2(b+d,a+c)+tau)%tau);
+    } else otherLength+=len;
+  }
+  if (!p.leg_counts.includes(legs.length) || otherLength>0.12 ||
+      intervals(rim)<p.rim_coverage_min*tau) return 0;
+  legs.sort((a,b)=>a-b);
+  return legs.every((a,i)=>{
+    const next=legs[i+1] ?? legs[0]+tau;
+    return between((next-a)*legs.length/tau,p.leg_gap_ratio);
+  }) ? 0.77 : 0;
+}
+
 function ruleScore(e,v,parts) {
   if (!between(v.w,e.width_mm) || !between(v.h,e.depth_mm) || !between(v.ratio,e.aspect_ratio)) return 0;
-  const p=e.primitive_features, curved=parts.filter(x => x.curved);
+  const p=e.primitive_features;
+  if (e.rule==='round_stool') return roundStoolScore(p,v);
+  const curved=parts.filter(x => x.curved);
   if (e.rule === 'locker' || e.rule === 'desk') {
     const all=v.rr.reduce((s,x) => s+length(x),0);
     const curve=curved.flatMap(x => x.segs).reduce((s,x) => s+length(x),0);
@@ -250,6 +283,7 @@ function match(parts,entries) {
   for (const [a,v] of views) {
     const v90=oriented(segs,a+Math.PI/2)||v;
     const transforms=[];
+    let normalizedLength;
     for (const e of entries) {
       if (bareBox && (e.category==='desk' || e.category==='chair')) continue;
       if (e.entry_type==='generic_pattern') {
@@ -257,6 +291,8 @@ function match(parts,entries) {
         continue;
       }
       const f=e.features;
+      if (f.min_normalized_stroke_length &&
+          (normalizedLength ??= v.segs.reduce((n,s)=>n+length(s),0)) < f.min_normalized_stroke_length) continue;
       for (let k=0;k<4;k++) {
         const w=k%2?v.h:v.w, h=k%2?v.w:v.h;
         const dims=Math.min(closeSize(w,f.width_mm),closeSize(h,f.depth_mm));

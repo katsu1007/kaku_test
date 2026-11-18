@@ -13,8 +13,8 @@
 
 ブラウザ版では案件を端末内に保存し、同じGitHub Pagesオリジン上の他のKAKUとは保存領域を分けています。手元で開くにはリポジトリのルートで `python3 -m http.server 8000 --bind 127.0.0.1` を実行し、`http://127.0.0.1:8000/` を開きます。iPhoneアプリ用のIPAはこのテスト版では生成・公開しません。
 
-- **DXF由来の形状**：[Innerscene Drawing Library](https://www.innerscene.com/tools/library/drawings) の [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) DXFから13形状を変換。そのうち机・椅子は9形状です。直線／L字デスク、来客用チェアに、[連結デスク（机のみ／椅子付き）](https://www.innerscene.com/tools/library/drawings/bench-desk-pair-plan-cad-block-0f156e78)、[長方形会議テーブル・椅子セット](https://www.innerscene.com/tools/library/drawings/rectangular-meeting-table-plan-cad-block-f54702ab)、[5本脚のオフィスチェア](https://www.innerscene.com/tools/library/drawings/office-task-chair-plan-cad-block-3d0841c9)、[肘掛け椅子](https://www.innerscene.com/tools/library/drawings/armchair-plan-cad-block-83848260)、[リクライニングチェア](https://www.innerscene.com/tools/library/drawings/recliner-plan-cad-block-bb2d2c86)を追加しました。セットは一つの候補で、席数を見積もりへ転記しません。
-- **汎用ルール**：便器、小便器、洗面器、デスク、ロッカー列の5種。ロッカーは外枠、仕切り線、セル寸法・間隔で判定します。メーカー公式CADの原本や形状データは取り込んでいません。
+- **DXF由来の形状**：[Innerscene Drawing Library](https://www.innerscene.com/tools/library/drawings) の [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) DXFから18形状を変換。そのうち机・椅子は14形状です。直線／L字／連結デスク、会議テーブル・椅子セット、来客用／5本脚／肘掛け／リクライニングチェアに加え、[2人掛けソファ](https://www.innerscene.com/tools/library/drawings/two-seat-sofa-plan-cad-block-510966fe)、[3人掛けソファ](https://www.innerscene.com/tools/library/drawings/three-seat-sofa-plan-cad-block-4517f70b)、[L字ソファ](https://www.innerscene.com/tools/library/drawings/l-sectional-sofa-plan-cad-block-7fedf660)、[子ども用ハイチェア（トレー付き）](https://www.innerscene.com/tools/library/drawings/high-chair-plan-cad-block-a21602fa)、[オットマン（足置きスツール）](https://www.innerscene.com/tools/library/drawings/ottoman-plan-cad-block-1e7eb8f9)を収録しています。セットは一つの候補で、席数を見積もりへ転記しません。
+- **汎用ルール**：便器、小便器、洗面器、デスク、ロッカー列、丸スツールの6種。丸スツールは、丸い座面と等間隔に近い3本または4本の短い脚線が揃う場合だけ「類似」とします。円だけの記号や同心円からは判定せず、平面図から座面の高さは推定しません。メーカー公式CADの原本や形状データは取り込んでいません。
 - **読み直しと制限**：保存済みの図面に新しい辞書を使うには「読み直す」で元のJWW・DXFを選び直してください。既存の部屋と図面の紐付けを残したい場合は、案件を複製してからお試しください。形状一致のスコアは正答率ではなく、線の欠け・重なり・寸法差などで未検出や誤検出が起こります。PDF・写真は照合対象外です。
 
 ### 辞書の再生成

@@ -125,6 +125,9 @@ def sample(entry, input_dir, download):
     cx, cy, scale = (min(xs)+max(xs))/2, (min(ys)+max(ys))/2, max(w,h)
     geometry = [[round(v, 6) for v in ((x-cx)/scale, (y-cy)/scale, (u-cx)/scale, (v-cy)/scale)]
                 for x,y,u,v in strokes]
+    stroke_ratio = entry.get("min_stroke_ratio")
+    if stroke_ratio is not None and not 0 < stroke_ratio <= 1:
+        raise ValueError(f"invalid min_stroke_ratio: {entry['id']}")
     return {
         "id": entry["id"], "category": entry["category"], "label": entry["label"], "entry_type": "observed",
         "provenance": {"license": license_id, "license_url": LICENSE[license_id], "source_url": source,
@@ -133,7 +136,9 @@ def sample(entry, input_dir, download):
         "features": {"width_mm": round(w, 3), "depth_mm": round(h, 3), "aspect_ratio": round(w/h, 6),
                      "primitive_counts": dict(sorted(counts.items())),
                      "primitive_ratios": {k: round(v/sum(counts.values()), 6) for k,v in sorted(counts.items())},
-                     "primitive_length_ratios": {k: round(v/sum(length.values()), 6) for k,v in sorted(length.items())}},
+                     "primitive_length_ratios": {k: round(v/sum(length.values()), 6) for k,v in sorted(length.items())},
+                     **({"min_normalized_stroke_length": round(stroke_ratio*sum(length.values())/scale, 5)}
+                        if stroke_ratio is not None else {})},
         "segments": geometry,
     }
 
