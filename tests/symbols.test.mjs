@@ -89,6 +89,14 @@ test('辞書の種類が拮抗する記号に断定した分類を付けない',
   assert.deepEqual(r[0].hints,[shape.label,'洗面台候補']);
 });
 
+test('欠けた図形は辞書に似ていても一致にしない', () => {
+  const segs=symbol('desk_straight',10.6,4.8).filter((_,j)=>j%3!==1);
+  const r=recognize({segs});
+  assert.equal(r.length,1);
+  assert.equal(r[0].status,'unknown');
+  assert.equal(r[0].reason,'weak');
+});
+
 test('すでに保存された記号にもスコアと辞書種別で色を付ける', () => {
   assert.equal(symbolStatus({entry_type:'observed',score:95}),'match');
   assert.equal(symbolStatus({entry_type:'observed',score:83}),'similar');

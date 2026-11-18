@@ -47,7 +47,7 @@ export function touch(p) {
 /* 保存は1つずつ順に（前の書き込みが終わる前に次を始めない）。ほかのタブで同じ案件が新しくなっていたら上書きしない */
 const known = store.known;   // 案件 id → この画面が最後に読んだ・書いた時の updatedAt（store.js が覚える）
 let inflight = Promise.resolve(), retryT = null;
-const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('kaku-generation') : null;
+const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(window.kakuTestWeb ? 'kaku-test-web' : 'kaku-generation') : null;
 export function flush() { inflight = inflight.then(flush0, flush0); return inflight; }
 async function flush0() {
   clearTimeout(saveTimer);
@@ -159,7 +159,7 @@ const NAV = [
 function shell() {
   const r = state.route.name === 'project' ? 'projects' : state.route.name;
   $('#side').innerHTML = `
-    <div class="brand"><div class="logo">K</div><div><b>KAKU</b><small>見積もりワークスペース</small></div></div>
+    <div class="brand"><div class="logo">K</div><div><b>${window.kakuTestWeb ? 'KAKU Test' : 'KAKU'}</b><small>見積もりワークスペース</small></div></div>
     ${NAV.map(([k, h, ic, t]) => `<a class="nav ${r === k ? 'on' : ''}" href="${h}">${icon(ic)}${t}</a>`).join('')}
     <div class="sep"></div>
     <div class="lab">前のKAKU</div>

@@ -1,9 +1,10 @@
 /* 水道概算 ウェブ版：ネットがなくても開けるように保存する。更新したら VERSION を上げる */
-const VERSION = "2026-11-11.1";
-const CACHE = "suido-" + VERSION;
-const FILES = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
+const VERSION = "2026-11-18.1";
+const PREFIX = new URL(self.registration.scope).pathname === "/kaku_test/suido/" ? "kakutest-suido-" : "suido-";
+const CACHE = PREFIX + VERSION;
+const FILES = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "../js/test-storage.js"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
-self.addEventListener("activate", (e) => { e.waitUntil((async () => { const ks = await caches.keys(); await Promise.all(ks.filter((k) => k.startsWith("suido-") && k !== CACHE).map((k) => caches.delete(k))); await self.clients.claim(); })()); });
+self.addEventListener("activate", (e) => { e.waitUntil((async () => { const ks = await caches.keys(); await Promise.all(ks.filter((k) => k.startsWith(PREFIX) && k !== CACHE).map((k) => caches.delete(k))); await self.clients.claim(); })()); });
 self.addEventListener("fetch", (e) => {
   const req = e.request; if (req.method !== "GET") return;
   const url = new URL(req.url); if (url.origin !== self.location.origin) return;
